@@ -62,6 +62,7 @@ static void hal_init(void)
     indev_encoder_drv.type = LV_INDEV_TYPE_ENCODER;
     indev_encoder_drv.read_cb = lv_test_encoder_read_cb;
     lv_test_encoder_indev = lv_indev_drv_register(&indev_encoder_drv);
+    
 }
 
 static void dummy_flush_cb(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_color_t * color_p)
