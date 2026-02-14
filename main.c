@@ -803,20 +803,6 @@ static void hal_init(void)
     } else {
         LOG_WARN("Failed to register encoder input");
     }
-
-    /* 鼠标光标 */
-    LOG_DEBUG("Setting up mouse cursor...");
-    LV_IMG_DECLARE(mouse_cursor_icon);
-    lv_obj_t *cursor = lv_img_create(lv_scr_act());
-    if (cursor != NULL) {
-        lv_img_set_src(cursor, &mouse_cursor_icon);
-        if (mouse_indev) {
-            lv_indev_set_cursor(mouse_indev, cursor);
-        }
-        LOG_DEBUG("Mouse cursor created");
-    } else {
-        LOG_WARN("Failed to create mouse cursor");
-    }
     
     LOG_INFO("HAL initialization complete");
 }
