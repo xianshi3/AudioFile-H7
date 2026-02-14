@@ -1,6 +1,6 @@
 /**
  * @file main.c
- * @brief 音频文件处理器 - LVGL图形用户界面（优化版）
+ * @brief 音频文件处理器 - LVGL图形用户界面
  * @version 2.0
  * @date 2024-01-20
  */
