@@ -97,7 +97,7 @@ typedef struct {
     file_info_t files[MAX_FILES];  /* 文件数组 */
     int file_count;             /* 文件数量 */
     char current_path[MAX_PATH]; /* 当前路径 */
-    lv_obj_t *file_list;        /* 文件列表对象 */
+    lv_obj_t *file_manager_list;  /* 文件管理器列表对象 */
     
     /* 音频播放器相关 */
     int is_playing;             /* 是否正在播放 */
@@ -105,11 +105,14 @@ typedef struct {
     lv_obj_t *play_btn;         /* 播放按钮 */
     lv_obj_t *progress_bar;     /* 进度条 */
     lv_obj_t *time_label;       /* 时间标签 */
+    lv_obj_t *player_list;      /* 播放器列表对象 */
+    lv_obj_t *now_playing_label; /* 当前播放标签 */
     
     /* 音频处理器相关 */
     effect_t effects[8];        /* 效果器数组 */
     int effect_count;           /* 效果器数量 */
     lv_obj_t *effect_cont;      /* 效果器容器 */
+    lv_obj_t *param_cont;       /* 参数容器 */
     
     /* 定时器管理 */
     lv_timer_t *app_timer;      /* 应用定时器 */
@@ -133,16 +136,18 @@ static void file_manager_timer_cb(lv_timer_t *timer);
 static void audio_player_timer_cb(lv_timer_t *timer);
 static void audio_processor_timer_cb(lv_timer_t *timer);
 static void load_directory(const char *path);
+static void load_audio_files(const char *path);
 static void on_app_click(lv_event_t *e);
 static void on_back_click(lv_event_t *e);
 static void on_file_click(lv_event_t *e);
+static void on_audio_file_click(lv_event_t *e);
 static void on_delete_confirm(lv_event_t *e);
 static void on_effect_change(lv_event_t *e);
 static void on_play_click(lv_event_t *e);
+static void on_stop_click(lv_event_t *e);
 static void on_slider_change(lv_event_t *e);
 static void free_timer_resources(void);
 static void show_notification(const char *msg, lv_color_t color);
-static void on_stop_click(lv_event_t *e);
 
 /**********************
  *      全局函数
@@ -170,6 +175,7 @@ int main(int argc, char **argv)
     memset(app_ctx, 0, sizeof(app_context_t));
     strcpy(app_ctx->current_path, "./");
     app_ctx->current_app = APP_NONE;
+    app_ctx->current_track = -1;
 
     /* 创建主屏幕 */
     create_main_screen();
@@ -215,7 +221,7 @@ static void hal_init(void)
         lv_palette_main(LV_PALETTE_BLUE), 
         lv_palette_main(LV_PALETTE_RED), 
         LV_THEME_DEFAULT_DARK, 
-        LV_FONT_DEFAULT);  /* 使用默认字体 */
+        LV_FONT_DEFAULT);
     lv_disp_set_theme(disp, th);
 
     /* 创建组用于键盘导航 */
@@ -360,10 +366,10 @@ static void create_file_manager_screen(void)
     lv_obj_set_style_border_width(list_cont, 0, 0);
     lv_obj_set_style_bg_opa(list_cont, LV_OPA_TRANSP, 0);
 
-    /* 创建文件列表 */
-    app_ctx->file_list = lv_list_create(list_cont);
-    lv_obj_set_size(app_ctx->file_list, LV_PCT(100), LV_PCT(100));
-    lv_obj_set_style_border_width(app_ctx->file_list, 0, 0);
+    /* 创建文件列表 - 使用专用的文件管理器列表变量 */
+    app_ctx->file_manager_list = lv_list_create(list_cont);
+    lv_obj_set_size(app_ctx->file_manager_list, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_border_width(app_ctx->file_manager_list, 0, 0);
 
     /* 启动文件管理器定时器 */
     app_ctx->timer_running = 1;
@@ -422,17 +428,18 @@ static void create_audio_player_screen(void)
     lv_label_set_text(list_label, "Playlist:");
     lv_obj_set_style_text_font(list_label, &lv_font_montserrat_14, 0);
     
-    /* 播放列表 */
-    app_ctx->file_list = lv_list_create(main_cont);
-    lv_obj_set_size(app_ctx->file_list, LV_PCT(100), 180);
-    lv_obj_set_style_border_width(app_ctx->file_list, 1, 0);
-    lv_obj_set_style_border_color(app_ctx->file_list, lv_palette_main(LV_PALETTE_GREY), 0);
+    /* 播放列表 - 使用专用的播放器列表变量 */
+    app_ctx->player_list = lv_list_create(main_cont);
+    lv_obj_set_size(app_ctx->player_list, LV_PCT(100), 180);
+    lv_obj_set_style_border_width(app_ctx->player_list, 1, 0);
+    lv_obj_set_style_border_color(app_ctx->player_list, lv_palette_main(LV_PALETTE_GREY), 0);
 
     /* 当前播放信息 */
-    lv_obj_t *now_playing = lv_label_create(main_cont);
-    lv_label_set_text(now_playing, "Not playing");
-    lv_obj_set_style_text_font(now_playing, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_align(now_playing, LV_TEXT_ALIGN_CENTER, 0);
+    app_ctx->now_playing_label = lv_label_create(main_cont);
+    lv_label_set_text(app_ctx->now_playing_label, "Not playing");
+    lv_obj_set_style_text_font(app_ctx->now_playing_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_align(app_ctx->now_playing_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(app_ctx->now_playing_label, LV_PCT(100));
 
     /* 播放控制区 */
     lv_obj_t *control_cont = lv_obj_create(main_cont);
@@ -452,9 +459,10 @@ static void create_audio_player_screen(void)
     app_ctx->progress_bar = lv_bar_create(progress_cont);
     lv_obj_set_size(app_ctx->progress_bar, LV_PCT(80), 10);
     lv_bar_set_range(app_ctx->progress_bar, 0, 100);
+    lv_bar_set_value(app_ctx->progress_bar, 0, LV_ANIM_OFF);
     
     app_ctx->time_label = lv_label_create(progress_cont);
-    lv_label_set_text(app_ctx->time_label, "00:00/03:00");
+    lv_label_set_text(app_ctx->time_label, "00:00/00:00");
     lv_obj_set_style_text_font(app_ctx->time_label, &lv_font_montserrat_12, 0);
     lv_obj_set_width(app_ctx->time_label, LV_PCT(18));
 
@@ -489,7 +497,7 @@ static void create_audio_player_screen(void)
     app_ctx->app_timer = lv_timer_create(audio_player_timer_cb, 100, app_ctx);
     
     /* 加载音频文件列表 */
-    load_directory("./");
+    load_audio_files("./");
 }
 
 /**
@@ -576,7 +584,7 @@ static void create_audio_processor_screen(void)
     app_ctx->effects[4].enabled = 0;
     app_ctx->effects[4].param1 = 1000;
 
-    /* 创建效果器按钮 */
+    /* 创建效果器按钮 - 不需要额外设置外边距 */
     for (int i = 0; i < app_ctx->effect_count; i++) {
         lv_obj_t *btn = lv_btn_create(effect_list);
         lv_obj_set_size(btn, LV_PCT(100), 40);
@@ -606,15 +614,16 @@ static void create_audio_processor_screen(void)
     const char *param_names[] = {"Param 1", "Param 2", "Param 3"};
     for (int i = 0; i < 3; i++) {
         lv_obj_t *slider_cont = lv_obj_create(app_ctx->effect_cont);
-        lv_obj_set_size(slider_cont, LV_PCT(100), 50);
+        lv_obj_set_size(slider_cont, LV_PCT(100), 60);
         lv_obj_set_flex_flow(slider_cont, LV_FLEX_FLOW_ROW);
         lv_obj_set_style_border_width(slider_cont, 0, 0);
         lv_obj_set_style_bg_opa(slider_cont, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_pad_all(slider_cont, 5, 0);
         
         lv_obj_t *label = lv_label_create(slider_cont);
         lv_label_set_text(label, param_names[i]);
         lv_obj_set_style_text_font(label, &lv_font_montserrat_12, 0);
-        lv_obj_set_width(label, 60);
+        lv_obj_set_width(label, 70);
         
         lv_obj_t *slider = lv_slider_create(slider_cont);
         lv_obj_set_size(slider, 150, 10);
@@ -718,7 +727,7 @@ static void audio_processor_timer_cb(lv_timer_t *timer)
 }
 
 /**
- * @brief 加载目录内容
+ * @brief 加载目录内容（文件管理器专用）
  * @param path 目录路径
  * @details 读取指定目录下的文件和文件夹，更新文件列表显示
  */
@@ -728,7 +737,7 @@ static void load_directory(const char *path)
     struct dirent *entry;
     struct stat st;
     
-    if (!app_ctx->file_list) {
+    if (!app_ctx->file_manager_list) {
         return;
     }
     
@@ -741,13 +750,13 @@ static void load_directory(const char *path)
     /* 清空文件列表 */
     app_ctx->file_count = 0;
     
-    if (app_ctx->file_list != NULL) {
-        lv_obj_clean(app_ctx->file_list);
+    if (app_ctx->file_manager_list != NULL) {
+        lv_obj_clean(app_ctx->file_manager_list);
     }
     
     /* 添加上级目录选项（如果不是根目录） */
     if (strcmp(path, "./") != 0 && strcmp(path, "/") != 0) {
-        lv_obj_t *btn = lv_list_add_btn(app_ctx->file_list, LV_SYMBOL_DIRECTORY, "..");
+        lv_obj_t *btn = lv_list_add_btn(app_ctx->file_manager_list, LV_SYMBOL_DIRECTORY, "..");
         lv_obj_add_event_cb(btn, on_file_click, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
     }
     
@@ -780,7 +789,7 @@ static void load_directory(const char *path)
                 }
             }
             
-            lv_obj_t *btn = lv_list_add_btn(app_ctx->file_list, icon, entry->d_name);
+            lv_obj_t *btn = lv_list_add_btn(app_ctx->file_manager_list, icon, entry->d_name);
             lv_obj_add_event_cb(btn, on_file_click, LV_EVENT_CLICKED, 
                 (void *)(intptr_t)app_ctx->file_count);
             
@@ -792,7 +801,7 @@ static void load_directory(const char *path)
     
     /* 空文件夹提示 */
     if (app_ctx->file_count == 0) {
-        lv_obj_t *label = lv_label_create(app_ctx->file_list);
+        lv_obj_t *label = lv_label_create(app_ctx->file_manager_list);
         lv_label_set_text(label, "Folder is empty");
         lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
@@ -800,6 +809,76 @@ static void load_directory(const char *path)
     }
     
     show_notification("Directory loaded", lv_palette_main(LV_PALETTE_GREEN));
+}
+
+/**
+ * @brief 加载音频文件（播放器专用）
+ * @param path 目录路径
+ * @details 读取指定目录下的音频文件，更新播放列表显示
+ */
+static void load_audio_files(const char *path)
+{
+    DIR *dir;
+    struct dirent *entry;
+    struct stat st;
+    
+    if (!app_ctx->player_list) {
+        return;
+    }
+    
+    dir = opendir(path);
+    if (dir == NULL) {
+        show_notification("Cannot open directory", lv_palette_main(LV_PALETTE_RED));
+        return;
+    }
+    
+    /* 清空播放列表 */
+    if (app_ctx->player_list != NULL) {
+        lv_obj_clean(app_ctx->player_list);
+    }
+    
+    /* 读取目录内容 */
+    app_ctx->file_count = 0;
+    while ((entry = readdir(dir)) != NULL && app_ctx->file_count < MAX_FILES) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        
+        char full_path[MAX_PATH];
+        snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
+        
+        if (stat(full_path, &st) == 0 && !S_ISDIR(st.st_mode)) {
+            /* 检查是否为音频文件 */
+            const char *ext = strrchr(entry->d_name, '.');
+            if (ext && (strcasecmp(ext, ".mp3") == 0 || 
+                        strcasecmp(ext, ".wav") == 0 || 
+                        strcasecmp(ext, ".flac") == 0 || 
+                        strcasecmp(ext, ".aac") == 0)) {
+                
+                strcpy(app_ctx->files[app_ctx->file_count].name, entry->d_name);
+                strcpy(app_ctx->files[app_ctx->file_count].path, full_path);
+                app_ctx->files[app_ctx->file_count].is_dir = 0;
+                app_ctx->files[app_ctx->file_count].size = st.st_size;
+                
+                lv_obj_t *btn = lv_list_add_btn(app_ctx->player_list, LV_SYMBOL_AUDIO, entry->d_name);
+                lv_obj_add_event_cb(btn, on_audio_file_click, LV_EVENT_CLICKED, 
+                    (void *)(intptr_t)app_ctx->file_count);
+                
+                app_ctx->file_count++;
+            }
+        }
+    }
+    
+    closedir(dir);
+    
+    /* 空播放列表提示 */
+    if (app_ctx->file_count == 0) {
+        lv_obj_t *label = lv_label_create(app_ctx->player_list);
+        lv_label_set_text(label, "No audio files found");
+        lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_width(label, LV_PCT(100));
+    }
 }
 
 /**
@@ -861,7 +940,7 @@ static void on_back_click(lv_event_t *e)
 }
 
 /**
- * @brief 文件点击事件处理函数
+ * @brief 文件点击事件处理函数（文件管理器专用）
  * @param e 事件对象指针
  */
 static void on_file_click(lv_event_t *e)
@@ -896,6 +975,38 @@ static void on_file_click(lv_event_t *e)
             (void *)(intptr_t)file_index);
         lv_obj_center(mbox);
     }
+}
+
+/**
+ * @brief 音频文件点击事件处理函数（播放器专用）
+ * @param e 事件对象指针
+ */
+static void on_audio_file_click(lv_event_t *e)
+{
+    int file_index = (int)(intptr_t)lv_event_get_user_data(e);
+    file_info_t *file = &app_ctx->files[file_index];
+    
+    /* 更新当前播放信息 */
+    char now_playing[128];
+    snprintf(now_playing, sizeof(now_playing), "Playing: %s", file->name);
+    lv_label_set_text(app_ctx->now_playing_label, now_playing);
+    
+    /* 播放选中的音频文件 */
+    show_notification(now_playing, lv_palette_main(LV_PALETTE_GREEN));
+    
+    /* 这里添加实际的音频播放代码 */
+    app_ctx->current_track = file_index;
+    app_ctx->is_playing = 1;
+    
+    /* 更新播放按钮状态 */
+    lv_obj_t *play_label = lv_obj_get_child(app_ctx->play_btn, 0);
+    lv_label_set_text(play_label, LV_SYMBOL_PAUSE);
+    
+    /* 重置进度条 */
+    lv_bar_set_value(app_ctx->progress_bar, 0, LV_ANIM_OFF);
+    
+    /* 调用I2S发送音频数据到音频芯片 */
+    /* play_audio_file(file->path); */
 }
 
 /**
@@ -949,6 +1060,11 @@ static void on_effect_change(lv_event_t *e)
  */
 static void on_play_click(lv_event_t *e)
 {
+    if (app_ctx->current_track < 0 || app_ctx->current_track >= app_ctx->file_count) {
+        show_notification("No track selected", lv_palette_main(LV_PALETTE_RED));
+        return;
+    }
+    
     app_ctx->is_playing = !app_ctx->is_playing;
     
     lv_obj_t *btn = lv_event_get_current_target(e);
@@ -969,11 +1085,14 @@ static void on_stop_click(lv_event_t *e)
     
     /* 重置进度条 */
     lv_bar_set_value(app_ctx->progress_bar, 0, LV_ANIM_ON);
-    lv_label_set_text(app_ctx->time_label, "00:00/03:00");
+    lv_label_set_text(app_ctx->time_label, "00:00/00:00");
+    lv_label_set_text(app_ctx->now_playing_label, "Not playing");
     
     /* 更新播放按钮文本 */
     lv_obj_t *play_label = lv_obj_get_child(app_ctx->play_btn, 0);
     lv_label_set_text(play_label, LV_SYMBOL_PLAY);
+    
+    app_ctx->current_track = -1;
     
     show_notification("Stopped", lv_palette_main(LV_PALETTE_BLUE));
 }
@@ -1002,10 +1121,11 @@ static void show_notification(const char *msg, lv_color_t color)
     lv_obj_t *notification = lv_label_create(lv_scr_act());
     lv_label_set_text(notification, msg);
     lv_obj_set_style_text_font(notification, &lv_font_montserrat_12, 0);
-    lv_obj_set_style_text_color(notification, color, 0);
-    lv_obj_set_style_bg_color(notification, lv_color_black(), 0);
+    lv_obj_set_style_text_color(notification, lv_color_white(), 0);
+    lv_obj_set_style_bg_color(notification, color, 0);
     lv_obj_set_style_bg_opa(notification, LV_OPA_80, 0);
     lv_obj_set_style_pad_all(notification, 10, 0);
+    lv_obj_set_style_radius(notification, 5, 0);
     lv_obj_align(notification, LV_ALIGN_BOTTOM_MID, 0, -10);
     
     /* 2秒后自动消失 */
