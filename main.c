@@ -121,9 +121,6 @@ typedef struct {
  **********************/
 static app_context_t *app_ctx = NULL;  /* 应用上下文指针 */
 
-/* 声明中文字体 */
-LV_FONT_DECLARE(lv_font_simsun_16_cjk);
-
 /**********************
  *      静态函数声明
  **********************/
@@ -213,12 +210,12 @@ static void hal_init(void)
 
     lv_disp_t *disp = lv_disp_drv_register(&disp_drv);
 
-    /* 设置主题，使用中文字体作为默认字体 */
+    /* 设置主题，使用默认字体 */
     lv_theme_t *th = lv_theme_default_init(disp, 
         lv_palette_main(LV_PALETTE_BLUE), 
         lv_palette_main(LV_PALETTE_RED), 
         LV_THEME_DEFAULT_DARK, 
-        &lv_font_simsun_16_cjk);  /* 使用中文字体 */
+        LV_FONT_DEFAULT);  /* 使用默认字体 */
     lv_disp_set_theme(disp, th);
 
     /* 创建组用于键盘导航 */
@@ -267,7 +264,7 @@ static void create_main_screen(void)
     /* 标题 */
     lv_obj_t *title = lv_label_create(app_ctx->main_screen);
     lv_label_set_text(title, "Audio File Processor");
-    lv_obj_set_style_text_font(title, &lv_font_simsun_16_cjk, 0);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_16, 0);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 10);
 
     /* 创建应用按钮容器 */
@@ -287,7 +284,7 @@ static void create_main_screen(void)
     
     lv_obj_t *label1 = lv_label_create(btn1);
     lv_label_set_text(label1, LV_SYMBOL_DIRECTORY " File Manager");
-    lv_obj_set_style_text_font(label1, &lv_font_simsun_16_cjk, 0);
+    lv_obj_set_style_text_font(label1, &lv_font_montserrat_14, 0);
     lv_obj_center(label1);
 
     /* 音频播放器应用按钮 */
@@ -297,7 +294,7 @@ static void create_main_screen(void)
     
     lv_obj_t *label2 = lv_label_create(btn2);
     lv_label_set_text(label2, LV_SYMBOL_PLAY " Audio Player");
-    lv_obj_set_style_text_font(label2, &lv_font_simsun_16_cjk, 0);
+    lv_obj_set_style_text_font(label2, &lv_font_montserrat_14, 0);
     lv_obj_center(label2);
 
     /* 音频处理器应用按钮 */
@@ -307,7 +304,7 @@ static void create_main_screen(void)
     
     lv_obj_t *label3 = lv_label_create(btn3);
     lv_label_set_text(label3, LV_SYMBOL_SETTINGS " Audio Processor");
-    lv_obj_set_style_text_font(label3, &lv_font_simsun_16_cjk, 0);
+    lv_obj_set_style_text_font(label3, &lv_font_montserrat_14, 0);
     lv_obj_center(label3);
 }
 
@@ -340,19 +337,19 @@ static void create_file_manager_screen(void)
     
     lv_obj_t *back_label = lv_label_create(app_ctx->back_btn);
     lv_label_set_text(back_label, LV_SYMBOL_LEFT);
-    lv_obj_set_style_text_font(back_label, &lv_font_simsun_16_cjk, 0);
+    lv_obj_set_style_text_font(back_label, &lv_font_montserrat_14, 0);
     lv_obj_center(back_label);
 
     /* 标题 */
     app_ctx->title_label = lv_label_create(header);
     lv_label_set_text(app_ctx->title_label, "File Manager");
-    lv_obj_set_style_text_font(app_ctx->title_label, &lv_font_simsun_16_cjk, 0);
+    lv_obj_set_style_text_font(app_ctx->title_label, &lv_font_montserrat_16, 0);
     lv_obj_align(app_ctx->title_label, LV_ALIGN_CENTER, 0, 0);
 
     /* 当前路径显示 */
     lv_obj_t *path_label = lv_label_create(header);
     lv_label_set_text_fmt(path_label, "Path: %s", app_ctx->current_path);
-    lv_obj_set_style_text_font(path_label, &lv_font_simsun_16_cjk, 0);
+    lv_obj_set_style_text_font(path_label, &lv_font_montserrat_12, 0);
     lv_obj_align(path_label, LV_ALIGN_RIGHT_MID, -5, 0);
 
     /* 文件列表容器 */
@@ -402,13 +399,13 @@ static void create_audio_player_screen(void)
     
     lv_obj_t *back_label = lv_label_create(app_ctx->back_btn);
     lv_label_set_text(back_label, LV_SYMBOL_LEFT);
-    lv_obj_set_style_text_font(back_label, &lv_font_simsun_16_cjk, 0);
+    lv_obj_set_style_text_font(back_label, &lv_font_montserrat_14, 0);
     lv_obj_center(back_label);
 
     /* 标题 */
     app_ctx->title_label = lv_label_create(header);
     lv_label_set_text(app_ctx->title_label, "Audio Player");
-    lv_obj_set_style_text_font(app_ctx->title_label, &lv_font_simsun_16_cjk, 0);
+    lv_obj_set_style_text_font(app_ctx->title_label, &lv_font_montserrat_16, 0);
     lv_obj_align(app_ctx->title_label, LV_ALIGN_CENTER, 0, 0);
 
     /* 主内容区 */
@@ -423,7 +420,7 @@ static void create_audio_player_screen(void)
     /* 播放列表标签 */
     lv_obj_t *list_label = lv_label_create(main_cont);
     lv_label_set_text(list_label, "Playlist:");
-    lv_obj_set_style_text_font(list_label, &lv_font_simsun_16_cjk, 0);
+    lv_obj_set_style_text_font(list_label, &lv_font_montserrat_14, 0);
     
     /* 播放列表 */
     app_ctx->file_list = lv_list_create(main_cont);
@@ -434,7 +431,7 @@ static void create_audio_player_screen(void)
     /* 当前播放信息 */
     lv_obj_t *now_playing = lv_label_create(main_cont);
     lv_label_set_text(now_playing, "Not playing");
-    lv_obj_set_style_text_font(now_playing, &lv_font_simsun_16_cjk, 0);
+    lv_obj_set_style_text_font(now_playing, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_align(now_playing, LV_TEXT_ALIGN_CENTER, 0);
 
     /* 播放控制区 */
@@ -458,7 +455,7 @@ static void create_audio_player_screen(void)
     
     app_ctx->time_label = lv_label_create(progress_cont);
     lv_label_set_text(app_ctx->time_label, "00:00/03:00");
-    lv_obj_set_style_text_font(app_ctx->time_label, &lv_font_simsun_16_cjk, 0);
+    lv_obj_set_style_text_font(app_ctx->time_label, &lv_font_montserrat_12, 0);
     lv_obj_set_width(app_ctx->time_label, LV_PCT(18));
 
     /* 按钮容器 */
@@ -521,13 +518,13 @@ static void create_audio_processor_screen(void)
     
     lv_obj_t *back_label = lv_label_create(app_ctx->back_btn);
     lv_label_set_text(back_label, LV_SYMBOL_LEFT);
-    lv_obj_set_style_text_font(back_label, &lv_font_simsun_16_cjk, 0);
+    lv_obj_set_style_text_font(back_label, &lv_font_montserrat_14, 0);
     lv_obj_center(back_label);
 
     /* 标题 */
     app_ctx->title_label = lv_label_create(header);
     lv_label_set_text(app_ctx->title_label, "Audio Processor");
-    lv_obj_set_style_text_font(app_ctx->title_label, &lv_font_simsun_16_cjk, 0);
+    lv_obj_set_style_text_font(app_ctx->title_label, &lv_font_montserrat_16, 0);
     lv_obj_align(app_ctx->title_label, LV_ALIGN_CENTER, 0, 0);
 
     /* 主内容区 */
@@ -548,7 +545,7 @@ static void create_audio_processor_screen(void)
     
     lv_obj_t *effect_title = lv_label_create(effect_list);
     lv_label_set_text(effect_title, "Effects");
-    lv_obj_set_style_text_font(effect_title, &lv_font_simsun_16_cjk, 0);
+    lv_obj_set_style_text_font(effect_title, &lv_font_montserrat_14, 0);
 
     /* 初始化效果器 */
     app_ctx->effect_count = 5;
@@ -590,7 +587,7 @@ static void create_audio_processor_screen(void)
         lv_label_set_text_fmt(label, "%s %s", 
             app_ctx->effects[i].name,
             app_ctx->effects[i].enabled ? LV_SYMBOL_OK : LV_SYMBOL_CLOSE);
-        lv_obj_set_style_text_font(label, &lv_font_simsun_16_cjk, 0);
+        lv_obj_set_style_text_font(label, &lv_font_montserrat_12, 0);
         lv_obj_center(label);
     }
 
@@ -603,7 +600,7 @@ static void create_audio_processor_screen(void)
     
     lv_obj_t *param_title = lv_label_create(app_ctx->effect_cont);
     lv_label_set_text(param_title, "Parameters");
-    lv_obj_set_style_text_font(param_title, &lv_font_simsun_16_cjk, 0);
+    lv_obj_set_style_text_font(param_title, &lv_font_montserrat_14, 0);
     
     /* 添加参数滑块 */
     const char *param_names[] = {"Param 1", "Param 2", "Param 3"};
@@ -616,7 +613,7 @@ static void create_audio_processor_screen(void)
         
         lv_obj_t *label = lv_label_create(slider_cont);
         lv_label_set_text(label, param_names[i]);
-        lv_obj_set_style_text_font(label, &lv_font_simsun_16_cjk, 0);
+        lv_obj_set_style_text_font(label, &lv_font_montserrat_12, 0);
         lv_obj_set_width(label, 60);
         
         lv_obj_t *slider = lv_slider_create(slider_cont);
@@ -627,7 +624,7 @@ static void create_audio_processor_screen(void)
         
         lv_obj_t *value_label = lv_label_create(slider_cont);
         lv_label_set_text(value_label, "50");
-        lv_obj_set_style_text_font(value_label, &lv_font_simsun_16_cjk, 0);
+        lv_obj_set_style_text_font(value_label, &lv_font_montserrat_12, 0);
         lv_obj_set_user_data(slider, value_label);
     }
 
@@ -797,7 +794,7 @@ static void load_directory(const char *path)
     if (app_ctx->file_count == 0) {
         lv_obj_t *label = lv_label_create(app_ctx->file_list);
         lv_label_set_text(label, "Folder is empty");
-        lv_obj_set_style_text_font(label, &lv_font_simsun_16_cjk, 0);
+        lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_width(label, LV_PCT(100));
     }
@@ -1004,7 +1001,7 @@ static void show_notification(const char *msg, lv_color_t color)
 {
     lv_obj_t *notification = lv_label_create(lv_scr_act());
     lv_label_set_text(notification, msg);
-    lv_obj_set_style_text_font(notification, &lv_font_simsun_16_cjk, 0);
+    lv_obj_set_style_text_font(notification, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(notification, color, 0);
     lv_obj_set_style_bg_color(notification, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(notification, LV_OPA_80, 0);
