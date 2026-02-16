@@ -634,17 +634,23 @@ static void setup_file_manager_screen(void)
 {
     lv_obj_t *cont = app_ctx->screen.main_cont;
     
-    /* 路径显示 */
+    /* 清空容器 */
+    lv_obj_clean(cont);
+    
+    lv_coord_t content_width = 400; /* 内容宽度 */
+    
+    /* 路径显示 - 使用完整宽度 */
     lv_obj_t *path_label = lv_label_create(cont);
     lv_label_set_text(path_label, app_ctx->current_path);
     lv_obj_set_style_text_font(path_label, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(path_label, lv_color_hex(0x888888), 0);
     lv_obj_set_pos(path_label, 10, 5);
-    lv_obj_set_size(path_label, 440, 20);
+    lv_obj_set_size(path_label, content_width, 20);
+    lv_label_set_long_mode(path_label, LV_LABEL_LONG_SCROLL_CIRCULAR);  // 长路径滚动显示
 
-    /* 文件列表 */
+    /* 文件列表 - 使用完整宽度 */
     app_ctx->screen.list = lv_list_create(cont);
-    lv_obj_set_size(app_ctx->screen.list, 440, SCREEN_HEIGHT - HEADER_HEIGHT - 35);
+    lv_obj_set_size(app_ctx->screen.list, content_width, SCREEN_HEIGHT - HEADER_HEIGHT - 35);
     lv_obj_set_pos(app_ctx->screen.list, 10, 30);
     lv_obj_set_style_bg_color(app_ctx->screen.list, lv_color_hex(0x2c3e50), 0);
     lv_obj_set_style_border_color(app_ctx->screen.list, lv_color_hex(0x34495e), 0);
@@ -652,7 +658,6 @@ static void setup_file_manager_screen(void)
     
     load_directory(app_ctx->current_path, app_ctx->screen.list);
 }
-
 /**********************
  *      音频播放器页面 - 全新设计
  **********************/
