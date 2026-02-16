@@ -2,92 +2,115 @@
 
 [LVGL](https://github.com/lvgl/lvgl)主要为微控制器和嵌入式系统编写，但你也可以**在PC上**运行该库，无需任何嵌入式硬件。在PC上编写的代码可以在使用嵌入式系统时直接复制。
 
+## 快速链接
+
+**在线模拟器**
+- [模拟器列表](https://sim.lvgl.io/)
+- [v8.3版本模拟器](https://sim.lvgl.io/v8.3/micropython/ports/javascript/index.html)
+
+**源码下载**
+- LVGL源码：[v8.3](https://github.com/lvgl/lvgl/tree/release/v8.3) | [v9.3](https://github.com/lvgl/lvgl/tree/release/v9.3)
+- PC Eclipse模拟器：[v8.3](https://github.com/lvgl/lv_port_pc_eclipse/tree/release/v8.3) | [v9.3](https://github.com/lvgl/lv_port_pc_eclipse/tree/release/v9.3)
+- PC VSCode模拟器：[v9.3](https://github.com/lvgl/lv_port_pc_vscode/tree/release/v9.3)
+- LVGL驱动源码（v8.3需要）：[v8.3](https://github.com/lvgl/lv_drivers/tree/release/v8.3)
+
+## 优势
+
 使用PC模拟器而不是嵌入式硬件有几个优势：
 * **成本为$0**，因为你无需购买或设计PCB
 * **速度快**，因为你无需设计和制造PCB
 * **协作性强**，因为任意数量的开发者可以在同一环境中工作
 * **对开发者友好**，因为在PC上调试更容易、更快
 
-## 系统要求
-PC模拟器跨平台支持。**Windows、Linux和OSX**都支持，但在Windows上使用[另一个模拟器](https://docs.lvgl.io/latest/en/html/get-started/pc-simulator.html)项目会更容易上手。
+## 项目搭建
 
-* **SDL** 低级驱动库，用于图形、鼠标、键盘等
-* 本项目（配置为**Eclipse CDT IDE**）
+### 新建工程
 
-## 使用方法
+1. 创建目录`lvgl_simulator`作为项目目录
+2. 解压`lv_port_pc_eclipse`或`lv_port_pc_vscode`的内容到项目目录
+3. 解压LVGL源码，重命名为`lvgl`，放入项目目录
+4. 解压`lv_drivers`源码（v8.3需要），重命名为`lv_drivers`，放入项目目录
 
-### 获取PC项目
+### 环境配置
 
-克隆PC项目及相关子模块：
+#### Windows开发环境
 
+**MinGW安装**
+- 下载[MinGW](https://pan.baidu.com/s/1QjK4r-I3xIfSnTMZyf5-lQ?pwd=6666)，解压到无中文和空格的路径（如`C:\devtools\mingw64`）
+- 配置环境变量`Path`，添加：
+  ```
+  D:\Develop\mingw64\bin
+  D:\Develop\mingw64\x86_64-w64-mingw32\bin
+  ```
+- 验证：`gcc -v`（需v12.2.0+）
+
+**CMake安装**
+- 下载[CMake](https://cmake.org/download/)并安装，将其添加到环境变量
+- 验证：`cmake --version`
+
+#### Linux安装
+
+```bash
+sudo apt-get update && sudo apt-get install -y build-essential libsdl2-dev cmake
 ```
-git clone --recursive https://github.com/littlevgl/pc_simulator_sdl_eclipse.git
-```
 
-### 安装SDL
-你可以从 https://www.libsdl.org/ 下载SDL
+## VSCode编译运行
 
-在Linux上，你可以通过终端安装：
-```
-sudo apt-get update && sudo apt-get install -y build-essential libsdl2-dev
-```
+### 安装扩展
+- C/C++ Extension Pack
+- CMake Tools
 
-### 安装Eclipse CDT
-从 http://www.eclipse.org/cdt/ 下载并安装Eclipse CDT
+### 编译步骤
+1. 用VSCode打开项目目录
+2. 配置GCC编译器（如无显示，点击GCC进行配置）
+3. 点击Build编译源码
+4. 编译完成后，将`mingw64\x86_64-w64-mingw32\bin\SDL2.dll`复制到`bin`目录
+5. 点击运行按钮执行
 
-### 导入PC模拟器项目
-1. 打开Eclipse CDT
-2. 点击**File->Import**，选择**General->Existing project into Workspace**
+## Eclipse CDT使用（可选）
+
+1. 从[Eclipse官网](http://www.eclipse.org/cdt/)下载Eclipse CDT
+2. 打开Eclipse，点击**File→Import**，选择**General→Existing project into Workspace**
 3. 浏览项目根目录，点击Finish
-4. 构建你的项目并运行它
+4. 构建并运行项目
 
-## CMake
+## CMake命令行编译（可选）
 
-以下步骤可在类Unix系统上使用CMake。这可能也适用于其他操作系统，但未经测试。
-
-1. 确保已安装CMake，即`cmake`命令在终端中可用。
-2. 创建新目录。名称无关紧要，但本教程使用`build`。
-3. 输入`cd build`。
-4. 输入`cmake ..`。CMake将生成适当的构建文件。
-5. 输入`make -j4`或（更便携的）`cmake --build . --parallel`。
-
-**注意：** CMake v3.12及以后版本支持`--parallel`。如果你使用较旧版本的CMake，请从命令中删除`--parallel`或使用make选项。
-
-6. 二进制文件位于`../bin/main`，可通过输入该命令运行。
-
-## Docker
-1. 构建Docker容器
+```bash
+mkdir build && cd build
+cmake ..
+cmake --build . --parallel
+./bin/main
 ```
+
+## Docker运行（可选）
+
+```bash
 docker build -t lvgl_simulator .
-```
-2. 运行Docker容器
-```
 docker run lvgl_simulator
 ```
-Docker GUI依赖于平台。例如，在macOS上，你可以按照[本教程](https://cntnr.io/running-guis-with-docker-on-mac-os-x-a14df6a76efc)运行类似的命令：
-```
-docker run -e DISPLAY=10.103.56.101:0 lvgl_simulator
-```
 
-请注意，在macOS上，启动Xquartz前可能需要启用间接GLX渲染：
-```
-defaults write org.macosforge.xquartz.X11 enable_iglx -bool true
-open -a Xquartz
-```
+## 常见问题
 
-对于配有X Server的Linux环境，以下是`docker run`命令。注意第一个命令`xhost +`授予所有人对X Server的访问权限。
+**重要提示**：项目路径不能包含中文和空格！
 
-```
-xhost +
-docker run -e DISPLAY=$DISPLAY -v /tmp/.X11-unix/:/tmp/.X11-unix:ro -t lvgl_simulator
-```
+| 问题 | 解决方案 |
+|------|--------|
+| 找不到`glob.h` | 注释掉该头文件引用 |
+| 找不到GCC | 确认环境变量PATH已配置MinGW路径；点击"扫描工具包"；重启VSCode |
+| CMake找不到生成器 | 确保`cmake --version`正常；在CMake设置中配置生成器为"MinGW Makefiles" |
+| CMakeCache错误 | 删除build文件夹，重新编译 |
+| CMake配置失败 | 按F1输入`cmake reset`重置；删除build目录；重新选择GCC环境 |
+| 无法查看输出日志 | 在CMakeLists.txt中添加：`if(CMAKE_HOST_WIN32) target_link_libraries(main -mconsole) endif()` |
+| 代码无法提示和跳转 | 禁用clangd插件；在C/C++设置中选择"default"启用IntelliSense |
 
 ## 贡献
-1. Fork本项目！
-2. 创建你的功能分支：`git checkout -b my-new-feature`
-3. 提交你的更改：`git commit -am 'Add some feature'`
-4. 推送到分支：`git push origin my-new-feature`
-5. 提交Pull Request！
 
-如果你发现问题，请通过GitHub报告！
+1. Fork本项目
+2. 创建功能分支：`git checkout -b my-new-feature`
+3. 提交更改：`git commit -am 'Add some feature'`
+4. 推送分支：`git push origin my-new-feature`
+5. 提交Pull Request
+
+如发现问题，请通过[GitHub](https://github.com/lvgl/lvgl/issues)报告。
 
