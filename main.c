@@ -267,7 +267,7 @@ static void hal_init(void)
 }
 
 /**********************
- *      主屏幕
+ *      主屏幕 - 调整图标和文字间距
  **********************/
 static void create_main_screen(void)
 {
@@ -303,7 +303,7 @@ static void create_main_screen(void)
         {LV_SYMBOL_DIRECTORY, "File Manager", lv_color_hex(0x3498db), APP_FILE_MANAGER},
         {LV_SYMBOL_PLAY, "Audio Player", lv_color_hex(0x2ecc71), APP_AUDIO_PLAYER},
         {LV_SYMBOL_SETTINGS, "Audio FX", lv_color_hex(0xe74c3c), APP_AUDIO_PROCESSOR},
-        {LV_SYMBOL_BELL, "Device Info", lv_color_hex(0xf39c12), APP_DEVICE_INFO}  // 使用LV_SYMBOL_BELL代替
+        {LV_SYMBOL_BELL, "Device Info", lv_color_hex(0xf39c12), APP_DEVICE_INFO}
     };
     
     for (int i = 0; i < 4; i++) {
@@ -316,19 +316,22 @@ static void create_main_screen(void)
         lv_obj_set_style_radius(card, 16, 0);
         lv_obj_set_style_bg_color(card, lv_color_hex(0x2c3e50), 0);
         lv_obj_set_style_shadow_width(card, 8, 0);
+        lv_obj_set_style_pad_all(card, 0, 0);
         lv_obj_add_event_cb(card, on_app_click, LV_EVENT_CLICKED, (void *)(intptr_t)cards[i].type);
         
+        /* 图标 - 上移一点，让文字更靠近 */
         lv_obj_t *icon = lv_label_create(card);
         lv_label_set_text(icon, cards[i].icon);
         lv_obj_set_style_text_font(icon, &lv_font_montserrat_32, 0);
         lv_obj_set_style_text_color(icon, cards[i].color, 0);
-        lv_obj_center(icon);
+        lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 35);  // 从20改为25，稍微上移
         
+        /* 标题 - 下移一点，让文字更靠近图标 */
         lv_obj_t *label = lv_label_create(card);
         lv_label_set_text(label, cards[i].title);
         lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_color(label, lv_color_hex(0xffffff), 0);
-        lv_obj_align(label, LV_ALIGN_BOTTOM_MID, 0, -10);
+        lv_obj_align(label, LV_ALIGN_BOTTOM_MID, 0, -25);  // 从-20改为-25，稍微下移
     }
 }
 
@@ -691,7 +694,7 @@ static void setup_file_manager_screen(void)
 }
 
 /**********************
- *      音频播放器页面
+ *      音频播放器页面 - 只显示歌名
  **********************/
 static void setup_audio_player_screen(void)
 {
@@ -720,27 +723,23 @@ static void setup_audio_player_screen(void)
     const lv_coord_t control_area_height = 85;   // 控制按钮区域高度
     
     /* 字体大小 */
-    const lv_font_t *font_large = &lv_font_montserrat_22;   // 歌曲名
-    const lv_font_t *font_medium = &lv_font_montserrat_16;  // 艺术家
-    const lv_font_t *font_small = &lv_font_montserrat_14;   // 时间、标题
+    const lv_font_t *font_large = &lv_font_montserrat_24;   // 歌名 - 稍微加大
+    const lv_font_t *font_medium = &lv_font_montserrat_16;  // 标题
+    const lv_font_t *font_small = &lv_font_montserrat_14;   // 时间
     const lv_font_t *font_icon_large = &lv_font_montserrat_36;  // 主按钮图标
     const lv_font_t *font_icon_normal = &lv_font_montserrat_28; // 普通按钮图标
     
-    /* 间距 */
+    /* 间距 - 调整以适应只有歌名的情况 */
     const lv_coord_t spacing_small = 10;
-    const lv_coord_t spacing_medium = 15;
+    const lv_coord_t spacing_medium = 25;  // 增加间距让布局更舒适
     const lv_coord_t spacing_large = 20;
     
     /* ==================== 计算Y坐标 ==================== */
-    lv_coord_t current_y = 10;  // 起始Y坐标
+    lv_coord_t current_y = 20;  // 起始Y坐标稍微下移
     
-    /* 歌曲名 */
+    /* 歌名 - 只有这一个信息 */
     const lv_coord_t y_song = current_y;
-    current_y += 30 + spacing_small;
-    
-    /* 艺术家 */
-    const lv_coord_t y_artist = current_y;
-    current_y += 25 + spacing_medium;
+    current_y += 35 + spacing_medium;  // 歌名高度35px
     
     /* 进度条区域 */
     const lv_coord_t y_progress = current_y;
@@ -761,8 +760,8 @@ static void setup_audio_player_screen(void)
     /* 确保内容容器没有滚动条 */
     lv_obj_set_scrollbar_mode(cont, LV_SCROLLBAR_MODE_OFF);
     
-    /* ==================== 歌曲信息区域 ==================== */
-    /* 当前播放歌曲名 - 完全居中 */
+    /* ==================== 歌名区域 ==================== */
+    /* 当前播放歌名 - 居中显示 */
     app_ctx->now_playing_label = lv_label_create(cont);
     lv_label_set_text(app_ctx->now_playing_label, "Not playing");
     lv_obj_set_style_text_font(app_ctx->now_playing_label, font_large, 0);
@@ -770,19 +769,8 @@ static void setup_audio_player_screen(void)
     lv_obj_set_style_text_align(app_ctx->now_playing_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(app_ctx->now_playing_label, content_width);
     lv_obj_set_pos(app_ctx->now_playing_label, start_x, y_song);
-    /* 设置标签在垂直方向上也居中于给定区域 */
-    lv_obj_set_style_text_align(app_ctx->now_playing_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(app_ctx->now_playing_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    
-    /* 艺术家信息 - 也居中 */
-    lv_obj_t *artist_label = lv_label_create(cont);
-    lv_label_set_text(artist_label, "Unknown Artist");
-    lv_obj_set_style_text_font(artist_label, font_medium, 0);
-    lv_obj_set_style_text_color(artist_label, lv_color_hex(0x888888), 0);
-    lv_obj_set_style_text_align(artist_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(artist_label, content_width);
-    lv_obj_set_pos(artist_label, start_x, y_artist);
-    
+    lv_obj_set_height(app_ctx->now_playing_label, 35);  // 设置固定高度
     
     /* ==================== 进度条区域 ==================== */
     /* 当前时间 - 左对齐 */
@@ -901,6 +889,7 @@ static void setup_audio_player_screen(void)
     
     load_audio_files("./", app_ctx->screen.list);
 }
+
 /**********************
  *      音频处理器页面 - 修复布局问题
  **********************/
@@ -1123,7 +1112,7 @@ static void setup_effect_config_screen(int effect_index)
 }
 
 /**********************
- *      上一首/下一首事件处理
+ *      上一首/下一首事件处理 - 只显示歌名
  **********************/
 static void on_prev_click(lv_event_t *e)
 {
@@ -1139,7 +1128,10 @@ static void on_prev_click(lv_event_t *e)
     }
     
     file_info_t *file = &app_ctx->files[app_ctx->current_track];
+    
+    /* 直接显示文件名作为歌名 */
     lv_label_set_text(app_ctx->now_playing_label, file->name);
+    
     app_ctx->is_playing = 1;
     
     lv_obj_t *play_label = lv_obj_get_child(app_ctx->play_btn, 0);
@@ -1165,7 +1157,10 @@ static void on_next_click(lv_event_t *e)
     }
     
     file_info_t *file = &app_ctx->files[app_ctx->current_track];
+    
+    /* 直接显示文件名作为歌名 */
     lv_label_set_text(app_ctx->now_playing_label, file->name);
+    
     app_ctx->is_playing = 1;
     
     lv_obj_t *play_label = lv_obj_get_child(app_ctx->play_btn, 0);
@@ -1176,6 +1171,7 @@ static void on_next_click(lv_event_t *e)
     
     show_notification("Next", lv_color_hex(0x3498db));
 }
+
 
 /**********************
  *      文件操作
