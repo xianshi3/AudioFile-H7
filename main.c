@@ -5,9 +5,10 @@
  * @date 2024-01-20
  */
 
-/*********************
- *      头文件包含
- *********************/
+/**
+ * @defgroup Includes 头文件包含
+ * @{
+ */
 #define _DEFAULT_SOURCE
 #include <stdlib.h>
 #include <unistd.h>
@@ -20,126 +21,176 @@
 #include "lvgl/examples/lv_examples.h"
 #include "lvgl/demos/lv_demos.h"
 #include "lv_drivers/sdl/sdl.h"
+/** @} */
 
-/*********************
- *      宏定义
- *********************/
-#define MAX_PATH 256
-#define MAX_FILES 128
-#define MAX_EFFECTS 8
+/**
+ * @defgroup Macros 宏定义
+ * @{
+ */
+#define MAX_PATH 256           /**< 最大路径长度 */
+#define MAX_FILES 128          /**< 最大文件数量 */
+#define MAX_EFFECTS 8          /**< 最大效果器数量 */
 
-#define HEADER_HEIGHT 50
-#define BACK_BTN_SIZE 50
-#define SCREEN_WIDTH 460
-#define SCREEN_HEIGHT 460
+#define HEADER_HEIGHT 50       /**< 标题栏高度 */
+#define BACK_BTN_SIZE 50       /**< 返回按钮大小 */
+#define SCREEN_WIDTH 460       /**< 屏幕宽度 */
+#define SCREEN_HEIGHT 460      /**< 屏幕高度 */
+/** @} */
 
-/**********************
- *      类型定义
- **********************/
+/**
+ * @defgroup Enums 枚举类型定义
+ * @{
+ */
+
+/**
+ * @brief 应用类型枚举
+ */
 typedef enum {
-    APP_NONE = 0,
-    APP_FILE_MANAGER,
-    APP_AUDIO_PLAYER,
-    APP_AUDIO_PROCESSOR,
-    APP_EFFECT_CONFIG,
-    APP_DEVICE_INFO
+    APP_NONE = 0,              /**< 无应用 */
+    APP_FILE_MANAGER,          /**< 文件管理器 */
+    APP_AUDIO_PLAYER,          /**< 音频播放器 */
+    APP_AUDIO_PROCESSOR,       /**< 音频处理器 */
+    APP_EFFECT_CONFIG,         /**< 效果器配置 */
+    APP_DEVICE_INFO            /**< 设备信息 */
 } app_type_t;
 
+/**
+ * @brief 效果器类型枚举
+ */
 typedef enum {
-    EFFECT_NONE = 0,
-    EFFECT_REVERB,
-    EFFECT_ECHO,
-    EFFECT_DISTORTION,
-    EFFECT_EQ,
-    EFFECT_FILTER
+    EFFECT_NONE = 0,           /**< 无效果 */
+    EFFECT_REVERB,             /**< 混响效果 */
+    EFFECT_ECHO,               /**< 回声效果 */
+    EFFECT_DISTORTION,         /**< 失真效果 */
+    EFFECT_EQ,                 /**< 均衡器 */
+    EFFECT_FILTER              /**< 滤波器 */
 } effect_type_t;
+/** @} */
 
+/**
+ * @defgroup Structs 结构体定义
+ * @{
+ */
+
+/**
+ * @brief 文件信息结构体
+ */
 typedef struct {
-    char name[64];
-    char path[MAX_PATH];
-    int is_dir;
-    int size;
+    char name[64];             /**< 文件名 */
+    char path[MAX_PATH];       /**< 文件路径 */
+    int is_dir;                /**< 是否为目录 */
+    int size;                  /**< 文件大小 */
 } file_info_t;
 
+/**
+ * @brief 效果器配置结构体
+ */
 typedef struct {
-    const char *name;
-    effect_type_t type;
-    int default_param1;
-    int default_param2;
-    int default_param3;
-    const char *param_names[3];
-    int param_min[3];
-    int param_max[3];
+    const char *name;          /**< 效果器名称 */
+    effect_type_t type;        /**< 效果器类型 */
+    int default_param1;        /**< 默认参数1 */
+    int default_param2;        /**< 默认参数2 */
+    int default_param3;        /**< 默认参数3 */
+    const char *param_names[3]; /**< 参数名称数组 */
+    int param_min[3];          /**< 参数最小值 */
+    int param_max[3];          /**< 参数最大值 */
 } effect_config_t;
 
+/**
+ * @brief 效果器状态结构体
+ */
 typedef struct {
-    effect_type_t type;
-    int enabled;
-    int param1;
-    int param2;
-    int param3;
-    char name[32];
-    lv_obj_t *btn;
-    lv_obj_t *status_indicator;
+    effect_type_t type;        /**< 效果器类型 */
+    int enabled;               /**< 是否启用 */
+    int param1;                /**< 参数1值 */
+    int param2;                /**< 参数2值 */
+    int param3;                /**< 参数3值 */
+    char name[32];             /**< 效果器名称 */
+    lv_obj_t *btn;             /**< 效果器按钮对象 */
+    lv_obj_t *status_indicator; /**< 状态指示器对象 */
 } effect_t;
 
-/* 滑块数据结构 */
+/**
+ * @brief 滑块回调数据结构
+ */
 typedef struct {
-    int effect_index;
-    int param_index;
-    lv_obj_t *value_label;
+    int effect_index;          /**< 效果器索引 */
+    int param_index;           /**< 参数索引 */
+    lv_obj_t *value_label;     /**< 数值标签对象 */
 } param_slider_data_t;
 
-/* 开关事件数据结构 */
+/**
+ * @brief 开关回调数据结构
+ */
 typedef struct {
-    int effect_index;
-    effect_t *effect;
+    int effect_index;          /**< 效果器索引 */
+    effect_t *effect;          /**< 效果器指针 */
 } switch_data_t;
 
+/**
+ * @brief 屏幕组件结构体
+ */
 typedef struct {
-    lv_obj_t *screen;
-    lv_obj_t *header;
-    lv_obj_t *back_btn;
-    lv_obj_t *title;
-    lv_obj_t *main_cont;
-    lv_obj_t *list;
+    lv_obj_t *screen;          /**< 屏幕对象 */
+    lv_obj_t *header;          /**< 标题栏对象 */
+    lv_obj_t *back_btn;        /**< 返回按钮对象 */
+    lv_obj_t *title;           /**< 标题对象 */
+    lv_obj_t *main_cont;       /**< 主容器对象 */
+    lv_obj_t *list;            /**< 列表对象 */
 } screen_components_t;
 
+/**
+ * @brief 应用上下文结构体
+ */
 typedef struct {
-    /* 主屏幕 */
-    lv_obj_t *main_screen;
+    /** @name 屏幕相关 */
+    ///@{
+    lv_obj_t *main_screen;                 /**< 主屏幕对象 */
+    app_type_t current_app;                 /**< 当前应用类型 */
+    int current_effect_index;               /**< 当前效果器索引 */
+    screen_components_t screen;              /**< 屏幕组件 */
+    ///@}
     
-    /* 当前状态 */
-    app_type_t current_app;
-    int current_effect_index;
-    screen_components_t screen;
+    /** @name 文件相关 */
+    ///@{
+    file_info_t files[MAX_FILES];           /**< 文件信息数组 */
+    int file_count;                          /**< 文件数量 */
+    char current_path[MAX_PATH];             /**< 当前路径 */
+    ///@}
     
-    /* 文件相关 */
-    file_info_t files[MAX_FILES];
-    int file_count;
-    char current_path[MAX_PATH];
+    /** @name 播放器相关 */
+    ///@{
+    int is_playing;                          /**< 是否正在播放 */
+    int current_track;                       /**< 当前音轨索引 */
+    lv_obj_t *play_btn;                      /**< 播放按钮对象 */
+    lv_obj_t *progress_bar;                  /**< 进度条对象 */
+    lv_obj_t *time_label;                    /**< 时间标签对象 */
+    lv_obj_t *now_playing_label;             /**< 当前播放标签对象 */
+    ///@}
     
-    /* 播放器相关 */
-    int is_playing;
-    int current_track;
-    lv_obj_t *play_btn;
-    lv_obj_t *progress_bar;
-    lv_obj_t *time_label;
-    lv_obj_t *now_playing_label;
+    /** @name 效果器相关 */
+    ///@{
+    effect_t effects[MAX_EFFECTS];           /**< 效果器数组 */
+    int effect_count;                        /**< 效果器数量 */
+    lv_obj_t *effect_cont;                   /**< 效果器容器对象 */
+    lv_obj_t *param_cont;                    /**< 参数容器对象 */
+    lv_obj_t *chain_label;                   /**< 效果链标签对象 */
+    ///@}
     
-    /* 效果器相关 */
-    effect_t effects[MAX_EFFECTS];
-    int effect_count;
-    lv_obj_t *effect_cont;
-    lv_obj_t *param_cont;
-    lv_obj_t *chain_label;
-    
-    /* 定时器管理 */
-    lv_timer_t *app_timer;
-    int timer_running;
+    /** @name 定时器管理 */
+    ///@{
+    lv_timer_t *app_timer;                   /**< 应用定时器 */
+    int timer_running;                        /**< 定时器是否运行 */
+    ///@}
 } app_context_t;
+/** @} */
 
-/* 效果器预设配置 */
+/**
+ * @defgroup Constants 常量定义
+ * @{
+ */
+
+/** @brief 效果器预设配置 */
 static const effect_config_t effect_presets[] = {
     {"Reverb", EFFECT_REVERB, 50, 0, 0, {"Mix", "", ""}, {0, 0, 0}, {100, 0, 0}},
     {"Echo", EFFECT_ECHO, 30, 0, 0, {"Delay", "", ""}, {0, 0, 0}, {100, 0, 0}},
@@ -147,17 +198,20 @@ static const effect_config_t effect_presets[] = {
     {"Equalizer", EFFECT_EQ, 50, 50, 50, {"Low", "Mid", "High"}, {0, 0, 0}, {100, 100, 100}},
     {"Filter", EFFECT_FILTER, 1000, 0, 0, {"Freq", "", ""}, {20, 0, 0}, {20000, 0, 0}}
 };
+/** @} */
 
-/**********************
- *      静态变量
- **********************/
-static app_context_t *app_ctx = NULL;
-static int screen_switch_in_progress = 0;
-static int uptime_seconds = 0;  // 用于设备信息页面的运行时间
+/**
+ * @defgroup GlobalVariables 全局变量
+ * @{
+ */
+static app_context_t *app_ctx = NULL;           /**< 应用上下文指针 */
+static int screen_switch_in_progress = 0;       /**< 屏幕切换中标志 */
+/** @} */
 
-/**********************
- *      静态函数声明
- **********************/
+/**
+ * @defgroup FunctionDeclarations 函数声明
+ * @{
+ */
 static void hal_init(void);
 static void create_main_screen(void);
 static void create_app_screen(app_type_t app_type);
@@ -186,12 +240,15 @@ static void audio_player_timer_cb(lv_timer_t *timer);
 static void audio_processor_timer_cb(lv_timer_t *timer);
 static void on_prev_click(lv_event_t *e);
 static void on_next_click(lv_event_t *e);
-static void device_info_timer_cb(lv_timer_t *timer);
 static void free_callback_data(lv_event_t *e);
+/** @} */
 
-/**********************
- *      全局函数
- **********************/
+/**
+ * @brief 程序入口函数
+ * @param argc 命令行参数个数
+ * @param argv 命令行参数数组
+ * @return 程序退出码
+ */
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -234,9 +291,14 @@ int main(int argc, char **argv)
     return 0;
 }
 
-/**********************
- *      初始化函数
- **********************/
+/**
+ * @defgroup Initialization 初始化函数
+ * @{
+ */
+
+/**
+ * @brief 硬件初始化
+ */
 static void hal_init(void)
 {
     sdl_init();
@@ -266,10 +328,16 @@ static void hal_init(void)
     mouse_drv.read_cb = sdl_mouse_read;
     lv_indev_drv_register(&mouse_drv);
 }
+/** @} */
 
-/**********************
- *      主屏幕 - 调整图标和文字间距
- **********************/
+/**
+ * @defgroup MainScreen 主屏幕相关函数
+ * @{
+ */
+
+/**
+ * @brief 创建主屏幕
+ */
 static void create_main_screen(void)
 {
     app_ctx->main_screen = lv_obj_create(NULL);
@@ -294,12 +362,12 @@ static void create_main_screen(void)
     lv_obj_set_style_text_color(version, lv_color_hex(0x888888), 0);
     lv_obj_set_pos(version, SCREEN_WIDTH - padding - 50, 25);
     
-    /* 功能卡片 - 使用LVGL 8.3支持的符号 */
+    /* 功能卡片定义 */
     struct {
-        const char *icon;
-        const char *title;
-        lv_color_t color;
-        app_type_t type;
+        const char *icon;      /**< 图标符号 */
+        const char *title;     /**< 标题文字 */
+        lv_color_t color;      /**< 图标颜色 */
+        app_type_t type;       /**< 应用类型 */
     } cards[] = {
         {LV_SYMBOL_DIRECTORY, "File Manager", lv_color_hex(0x3498db), APP_FILE_MANAGER},
         {LV_SYMBOL_PLAY, "Audio Player", lv_color_hex(0x2ecc71), APP_AUDIO_PLAYER},
@@ -326,25 +394,32 @@ static void create_main_screen(void)
         
         lv_obj_add_event_cb(card, on_app_click, LV_EVENT_CLICKED, (void *)(intptr_t)cards[i].type);
         
-        /* 图标 - 上移一点，让文字更靠近 */
+        /* 图标 */
         lv_obj_t *icon = lv_label_create(card);
         lv_label_set_text(icon, cards[i].icon);
         lv_obj_set_style_text_font(icon, &lv_font_montserrat_32, 0);
         lv_obj_set_style_text_color(icon, cards[i].color, 0);
-        lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 35);  // 从20改为25，稍微上移
+        lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 35);
         
-        /* 标题 - 下移一点，让文字更靠近图标 */
+        /* 标题 */
         lv_obj_t *label = lv_label_create(card);
         lv_label_set_text(label, cards[i].title);
         lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_color(label, lv_color_hex(0xffffff), 0);
-        lv_obj_align(label, LV_ALIGN_BOTTOM_MID, 0, -25);  // 从-20改为-25，稍微下移
+        lv_obj_align(label, LV_ALIGN_BOTTOM_MID, 0, -25);
     }
 }
+/** @} */
 
-/**********************
- *      屏幕管理
- **********************/
+/**
+ * @defgroup ScreenManagement 屏幕管理函数
+ * @{
+ */
+
+/**
+ * @brief 创建应用屏幕
+ * @param app_type 应用类型
+ */
 static void create_app_screen(app_type_t app_type)
 {
     /* 防止重复切换 */
@@ -364,7 +439,7 @@ static void create_app_screen(app_type_t app_type)
         app_ctx->screen.screen = NULL;
     }
 
-        /* 重置相关指针，防止悬垂指针 */
+    /* 重置相关指针，防止悬垂指针 */
     app_ctx->screen.list = NULL;
     app_ctx->play_btn = NULL;
     app_ctx->progress_bar = NULL;
@@ -428,6 +503,8 @@ static void create_app_screen(app_type_t app_type)
 
 /**
  * @brief 创建通用标题栏
+ * @param screen 父屏幕对象
+ * @param title 标题文字
  */
 static void setup_header(lv_obj_t *screen, const char *title)
 {
@@ -466,10 +543,16 @@ static void setup_header(lv_obj_t *screen, const char *title)
     app_ctx->screen.header = header;
     app_ctx->screen.back_btn = back_btn;
 }
+/** @} */
 
-/**********************
- *      设备信息页面 - 移除定时器
- **********************/
+/**
+ * @defgroup DeviceInfo 设备信息页面
+ * @{
+ */
+
+/**
+ * @brief 设置设备信息页面
+ */
 static void setup_device_info_screen(void)
 {
     lv_obj_t *cont = app_ctx->screen.main_cont;
@@ -494,7 +577,7 @@ static void setup_device_info_screen(void)
     
     /* 设备信息卡片 */
     lv_obj_t *info_card = lv_obj_create(cont);
-    lv_obj_set_size(info_card, content_width, 290);  // 减少高度，因为移除了运行时间
+    lv_obj_set_size(info_card, content_width, 290);
     lv_obj_set_pos(info_card, padding, current_y);
     lv_obj_set_style_border_width(info_card, 1, 0);
     lv_obj_set_style_border_color(info_card, lv_color_hex(0x34495e), 0);
@@ -619,7 +702,7 @@ static void setup_device_info_screen(void)
     lv_obj_set_pos(baud_value, value_x, 30 + line_y_step * 6);
     lv_obj_set_size(baud_value, 200, 20);
     
-    /* 底部提示 - 移除了运行时间，直接显示系统信息 */
+    /* 底部提示 */
     lv_obj_t *footer = lv_label_create(cont);
     lv_label_set_text(footer, "STM32H743VIT6 • System Ready");
     lv_obj_set_style_text_font(footer, &lv_font_montserrat_12, 0);
@@ -627,14 +710,17 @@ static void setup_device_info_screen(void)
     lv_obj_set_pos(footer, padding, 400);
     lv_obj_set_size(footer, content_width, 20);
     lv_obj_set_style_text_align(footer, LV_TEXT_ALIGN_CENTER, 0);
-    
-    /* 不再启动定时器 */
-    /* 移除 uptime_seconds 相关代码 */
 }
+/** @} */
 
-/**********************
- *      文件管理器页面
- **********************/
+/**
+ * @defgroup FileManager 文件管理器页面
+ * @{
+ */
+
+/**
+ * @brief 设置文件管理器页面
+ */
 static void setup_file_manager_screen(void)
 {
     lv_obj_t *cont = app_ctx->screen.main_cont;
@@ -642,7 +728,7 @@ static void setup_file_manager_screen(void)
     /* 清空容器 */
     lv_obj_clean(cont);
     
-    lv_coord_t content_width = 400; /* 内容宽度 */
+    lv_coord_t content_width = 400;
     
     /* 路径显示 - 使用完整宽度 */
     lv_obj_t *path_label = lv_label_create(cont);
@@ -651,7 +737,7 @@ static void setup_file_manager_screen(void)
     lv_obj_set_style_text_color(path_label, lv_color_hex(0x888888), 0);
     lv_obj_set_pos(path_label, 10, 5);
     lv_obj_set_size(path_label, content_width, 20);
-    lv_label_set_long_mode(path_label, LV_LABEL_LONG_SCROLL_CIRCULAR);  // 长路径滚动显示
+    lv_label_set_long_mode(path_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
 
     /* 文件列表 - 使用完整宽度 */
     app_ctx->screen.list = lv_list_create(cont);
@@ -663,10 +749,16 @@ static void setup_file_manager_screen(void)
     
     load_directory(app_ctx->current_path, app_ctx->screen.list);
 }
+/** @} */
 
-/**********************
- *      音频播放器页面 - 只显示歌名
- **********************/
+/**
+ * @defgroup AudioPlayer 音频播放器页面
+ * @{
+ */
+
+/**
+ * @brief 设置音频播放器页面
+ */
 static void setup_audio_player_screen(void)
 {
     lv_obj_t *cont = app_ctx->screen.main_cont;
@@ -674,65 +766,58 @@ static void setup_audio_player_screen(void)
     /* 清空容器 */
     lv_obj_clean(cont);
     
-    /* ==================== 定义统一的尺寸常量 ==================== */
-    /* 基础尺寸 */
+    /* 基础尺寸定义 */
     const lv_coord_t screen_width = 460;
     const lv_coord_t screen_height = 460;
-    const lv_coord_t header_height = 50;  // 标题栏高度
+    const lv_coord_t header_height = 50;
     const lv_coord_t padding = (screen_width - 425) / 2;
     
     /* 内容区域 */
-    const lv_coord_t content_width = 400;  // 固定宽度400
-    const lv_coord_t start_x = padding;    // 起始X坐标
+    const lv_coord_t content_width = 400;
+    const lv_coord_t start_x = padding;
     
     /* 按钮尺寸 */
-    const lv_coord_t btn_main_size = 75;    // 主按钮（播放/暂停）
-    const lv_coord_t btn_normal_size = 60;  // 普通按钮（上一首/下一首/停止）
+    const lv_coord_t btn_main_size = 75;
+    const lv_coord_t btn_normal_size = 60;
     
     /* 区域高度 */
-    const lv_coord_t progress_area_height = 50;  // 进度条区域高度
-    const lv_coord_t control_area_height = 85;   // 控制按钮区域高度
+    const lv_coord_t progress_area_height = 50;
+    const lv_coord_t control_area_height = 85;
     
     /* 字体大小 */
-    const lv_font_t *font_large = &lv_font_montserrat_24;   // 歌名 - 稍微加大
-    const lv_font_t *font_medium = &lv_font_montserrat_16;  // 标题
-    const lv_font_t *font_small = &lv_font_montserrat_14;   // 时间
-    const lv_font_t *font_icon_large = &lv_font_montserrat_36;  // 主按钮图标
-    const lv_font_t *font_icon_normal = &lv_font_montserrat_28; // 普通按钮图标
+    const lv_font_t *font_large = &lv_font_montserrat_24;
+    const lv_font_t *font_medium = &lv_font_montserrat_16;
+    const lv_font_t *font_small = &lv_font_montserrat_14;
+    const lv_font_t *font_icon_large = &lv_font_montserrat_36;
+    const lv_font_t *font_icon_normal = &lv_font_montserrat_28;
     
-    /* 间距 - 调整以适应只有歌名的情况 */
+    /* 间距 */
     const lv_coord_t spacing_small = 10;
-    const lv_coord_t spacing_medium = 25;  // 增加间距让布局更舒适
+    const lv_coord_t spacing_medium = 25;
     const lv_coord_t spacing_large = 20;
     
-    /* ==================== 计算Y坐标 ==================== */
-    lv_coord_t current_y = 20;  // 起始Y坐标稍微下移
+    /* 计算Y坐标 */
+    lv_coord_t current_y = 20;
     
-    /* 歌名 - 只有这一个信息 */
     const lv_coord_t y_song = current_y;
-    current_y += 35 + spacing_medium;  // 歌名高度35px
+    current_y += 35 + spacing_medium;
     
-    /* 进度条区域 */
     const lv_coord_t y_progress = current_y;
     current_y += progress_area_height + spacing_large;
     
-    /* 控制按钮区域 */
     const lv_coord_t y_controls = current_y;
     current_y += control_area_height + spacing_large;
     
-    /* 播放列表标题 */
     const lv_coord_t y_list_title = current_y;
     current_y += 25 + spacing_small;
     
-    /* 播放列表 */
     const lv_coord_t y_list = current_y;
     const lv_coord_t list_height = screen_height - header_height - y_list - 10;
     
     /* 确保内容容器没有滚动条 */
     lv_obj_set_scrollbar_mode(cont, LV_SCROLLBAR_MODE_OFF);
     
-    /* ==================== 歌名区域 ==================== */
-    /* 当前播放歌名 - 居中显示 */
+    /* 歌名区域 */
     app_ctx->now_playing_label = lv_label_create(cont);
     lv_label_set_text(app_ctx->now_playing_label, "Not playing");
     lv_obj_set_style_text_font(app_ctx->now_playing_label, font_large, 0);
@@ -741,24 +826,21 @@ static void setup_audio_player_screen(void)
     lv_obj_set_width(app_ctx->now_playing_label, content_width);
     lv_obj_set_pos(app_ctx->now_playing_label, start_x, y_song);
     lv_label_set_long_mode(app_ctx->now_playing_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_height(app_ctx->now_playing_label, 35);  // 设置固定高度
+    lv_obj_set_height(app_ctx->now_playing_label, 35);
     
-    /* ==================== 进度条区域 ==================== */
-    /* 当前时间 - 左对齐 */
+    /* 进度条区域 */
     app_ctx->time_label = lv_label_create(cont);
     lv_label_set_text(app_ctx->time_label, "00:00");
     lv_obj_set_style_text_font(app_ctx->time_label, font_small, 0);
     lv_obj_set_style_text_color(app_ctx->time_label, lv_color_hex(0xffffff), 0);
     lv_obj_set_pos(app_ctx->time_label, start_x, y_progress + 16);
     
-    /* 总时间 - 右对齐 */
     lv_obj_t *total_time = lv_label_create(cont);
     lv_label_set_text(total_time, "03:00");
     lv_obj_set_style_text_font(total_time, font_small, 0);
     lv_obj_set_style_text_color(total_time, lv_color_hex(0x888888), 0);
     lv_obj_set_pos(total_time, start_x + content_width - 45, y_progress + 16);
     
-    /* 进度条 - 居中 */
     app_ctx->progress_bar = lv_bar_create(cont);
     lv_obj_set_size(app_ctx->progress_bar, content_width - 80, 6);
     lv_obj_set_pos(app_ctx->progress_bar, start_x + 40, y_progress + 18);
@@ -768,12 +850,9 @@ static void setup_audio_player_screen(void)
     lv_obj_set_style_bg_color(app_ctx->progress_bar, lv_color_hex(0x3498db), LV_PART_INDICATOR);
     lv_obj_set_scrollbar_mode(app_ctx->progress_bar, LV_SCROLLBAR_MODE_OFF);
     
-    /* ==================== 控制按钮区域 ==================== */
-    /* 计算按钮位置 - 均匀分布 */
+    /* 控制按钮区域 */
     const lv_coord_t total_btn_width = btn_normal_size * 3 + btn_main_size;
     const lv_coord_t btn_spacing = (content_width - total_btn_width) / 5;
-    
-    /* 按钮垂直居中位置 */
     const lv_coord_t btn_y_offset = y_controls + (control_area_height - btn_main_size) / 2;
     
     /* 上一首按钮 */
@@ -791,7 +870,7 @@ static void setup_audio_player_screen(void)
     lv_obj_set_style_text_color(prev_label, lv_color_white(), 0);
     lv_obj_center(prev_label);
     
-    /* 播放/暂停按钮 - 主按钮 */
+    /* 播放/暂停按钮 */
     app_ctx->play_btn = lv_btn_create(cont);
     lv_obj_set_size(app_ctx->play_btn, btn_main_size, btn_main_size);
     lv_obj_set_pos(app_ctx->play_btn, start_x + btn_spacing * 2 + btn_normal_size, btn_y_offset);
@@ -838,14 +917,13 @@ static void setup_audio_player_screen(void)
     lv_obj_set_style_text_color(stop_label, lv_color_white(), 0);
     lv_obj_center(stop_label);
     
-    /* ==================== 播放列表区域 ==================== */
+    /* 播放列表区域 */
     lv_obj_t *list_title = lv_label_create(cont);
     lv_label_set_text(list_title, "Playlist");
     lv_obj_set_style_text_font(list_title, font_medium, 0);
     lv_obj_set_style_text_color(list_title, lv_color_hex(0x888888), 0);
     lv_obj_set_pos(list_title, start_x, y_list_title);
     
-    /* 播放列表 */
     app_ctx->screen.list = lv_list_create(cont);
     lv_obj_set_size(app_ctx->screen.list, content_width, list_height);
     lv_obj_set_pos(app_ctx->screen.list, start_x, y_list);
@@ -860,10 +938,16 @@ static void setup_audio_player_screen(void)
     
     load_audio_files("./", app_ctx->screen.list);
 }
+/** @} */
 
-/**********************
- *      音频处理器页面 - 修复布局问题
- **********************/
+/**
+ * @defgroup AudioProcessor 音频处理器页面
+ * @{
+ */
+
+/**
+ * @brief 设置音频处理器页面
+ */
 static void setup_audio_processor_screen(void)
 {
     lv_obj_t *cont = app_ctx->screen.main_cont;
@@ -871,10 +955,10 @@ static void setup_audio_processor_screen(void)
     /* 清空容器 */
     lv_obj_clean(cont);
     
-    /* 计算网格尺寸 - 精确计算确保不重叠 */
+    /* 计算网格尺寸 */
     lv_coord_t padding = 10;
-    lv_coord_t card_width = (440 - padding * 4) / 3;  // 440宽度，3列，每边padding，中间2个间隔
-    lv_coord_t card_height = 85;  // 固定高度，确保下方有足够空间
+    lv_coord_t card_width = (440 - padding * 4) / 3;
+    lv_coord_t card_height = 85;
     
     /* 标题 */
     lv_obj_t *title = lv_label_create(cont);
@@ -883,17 +967,15 @@ static void setup_audio_processor_screen(void)
     lv_obj_set_style_text_color(title, lv_color_hex(0x3498db), 0);
     lv_obj_set_pos(title, 10, 10);
     
-    /* 创建5个效果器框 - 2行布局，第一行3个，第二行2个 */
+    /* 创建5个效果器框 */
     for (int i = 0; i < 5; i++) {
         effect_t *effect = &app_ctx->effects[i];
         
         int row = i / 3;
         int col = i % 3;
         
-        /* 第二行只有2个，居中显示 */
         int x;
         if (row == 1) {
-            // 第二行只有两个卡片，计算居中位置
             int total_width = card_width * 2 + padding;
             int start_x = (440 - total_width) / 2;
             x = start_x + col * (card_width + padding);
@@ -933,14 +1015,13 @@ static void setup_audio_processor_screen(void)
         lv_obj_set_style_text_color(icon_label, lv_color_hex(0x3498db), 0);
         lv_obj_align(icon_label, LV_ALIGN_TOP_MID, 0, 10);
         
-        /* 效果器名称 */
         lv_obj_t *name_label = lv_label_create(card);
         lv_label_set_text(name_label, effect->name);
         lv_obj_set_style_text_font(name_label, &lv_font_montserrat_12, 0);
         lv_obj_set_style_text_color(name_label, lv_color_white(), 0);
         lv_obj_align(name_label, LV_ALIGN_BOTTOM_MID, 0, -8);
         
-        /* 状态指示器 - 放在右上角 */
+        /* 状态指示器 */
         lv_obj_t *indicator = lv_obj_create(card);
         lv_obj_set_size(indicator, 10, 10);
         lv_obj_set_style_radius(indicator, LV_RADIUS_CIRCLE, 0);
@@ -951,7 +1032,7 @@ static void setup_audio_processor_screen(void)
         effect->status_indicator = indicator;
     }
     
-    /* 效果链显示区域 - 放在最下方，确保不重叠 */
+    /* 效果链显示区域 */
     lv_obj_t *chain_bg = lv_obj_create(cont);
     lv_obj_set_size(chain_bg, 410, 70);
     lv_obj_set_pos(chain_bg, 10, 270);
@@ -961,20 +1042,18 @@ static void setup_audio_processor_screen(void)
     lv_obj_set_style_radius(chain_bg, 8, 0);
     lv_obj_set_style_pad_all(chain_bg, 10, 0);
     
-    /* 效果链标题 */
     lv_obj_t *chain_title = lv_label_create(chain_bg);
     lv_label_set_text(chain_title, "Active Effect Chain:");
     lv_obj_set_style_text_font(chain_title, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(chain_title, lv_color_hex(0x888888), 0);
     lv_obj_set_pos(chain_title, 10, 5);
     
-    /* 效果链内容 - 动态显示启用的效果器 */
     app_ctx->chain_label = lv_label_create(chain_bg);
     lv_obj_set_style_text_font(app_ctx->chain_label, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(app_ctx->chain_label, lv_color_hex(0xffffff), 0);
     lv_obj_set_size(app_ctx->chain_label, 420, 30);
     lv_obj_set_pos(app_ctx->chain_label, 10, 25);
-    lv_label_set_long_mode(app_ctx->chain_label, LV_LABEL_LONG_SCROLL_CIRCULAR);  // 如果文字太长，滚动显示
+    lv_label_set_long_mode(app_ctx->chain_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
     
     /* 底部提示信息 */
     lv_obj_t *hint = lv_label_create(cont);
@@ -986,14 +1065,21 @@ static void setup_audio_processor_screen(void)
     /* 初始化效果链显示 */
     update_effect_chain_display();
     
-    /* 启动定时器（如果需要） */
+    /* 启动定时器 */
     app_ctx->timer_running = 1;
     app_ctx->app_timer = lv_timer_create(audio_processor_timer_cb, 1000, app_ctx);
 }
+/** @} */
 
-/**********************
- *      效果器配置页面
- **********************/
+/**
+ * @defgroup EffectConfig 效果器配置页面
+ * @{
+ */
+
+/**
+ * @brief 设置效果器配置页面
+ * @param effect_index 效果器索引
+ */
 static void setup_effect_config_screen(int effect_index)
 {
     if (effect_index < 0 || effect_index >= 6) return;
@@ -1040,7 +1126,7 @@ static void setup_effect_config_screen(int effect_index)
         switch_data->effect_index = effect_index;
         switch_data->effect = effect;
         lv_obj_add_event_cb(enable_switch, on_effect_enable_switch, LV_EVENT_VALUE_CHANGED, switch_data);
-        lv_obj_add_event_cb(enable_switch, free_callback_data, LV_EVENT_DELETE, switch_data); /* 防止内存泄漏 */
+        lv_obj_add_event_cb(enable_switch, free_callback_data, LV_EVENT_DELETE, switch_data);
     }
     
     if (!config) return;
@@ -1079,14 +1165,21 @@ static void setup_effect_config_screen(int effect_index)
             slider_data->param_index = i;
             slider_data->value_label = value;
             lv_obj_add_event_cb(slider, on_config_slider_change, LV_EVENT_VALUE_CHANGED, slider_data);
-            lv_obj_add_event_cb(slider, free_callback_data, LV_EVENT_DELETE, slider_data);/* 防止内存泄漏 */
+            lv_obj_add_event_cb(slider, free_callback_data, LV_EVENT_DELETE, slider_data);
         }
     }
 }
+/** @} */
 
-/**********************
- *      上一首/下一首事件处理 - 只显示歌名
- **********************/
+/**
+ * @defgroup EventHandlers 事件处理函数
+ * @{
+ */
+
+/**
+ * @brief 上一首按钮点击事件
+ * @param e 事件对象
+ */
 static void on_prev_click(lv_event_t *e)
 {
     if (app_ctx->file_count == 0) {
@@ -1094,15 +1187,12 @@ static void on_prev_click(lv_event_t *e)
         return;
     }
     
-    /* 循环到上一首 */
     app_ctx->current_track--;
     if (app_ctx->current_track < 0) {
         app_ctx->current_track = app_ctx->file_count - 1;
     }
     
     file_info_t *file = &app_ctx->files[app_ctx->current_track];
-    
-    /* 直接显示文件名作为歌名 */
     lv_label_set_text(app_ctx->now_playing_label, file->name);
     
     app_ctx->is_playing = 1;
@@ -1110,12 +1200,15 @@ static void on_prev_click(lv_event_t *e)
     lv_obj_t *play_label = lv_obj_get_child(app_ctx->play_btn, 0);
     if (play_label) lv_label_set_text(play_label, LV_SYMBOL_PAUSE);
     
-    /* 重置进度条 */
     lv_bar_set_value(app_ctx->progress_bar, 0, LV_ANIM_OFF);
     
     show_notification("Previous", lv_color_hex(0x3498db));
 }
 
+/**
+ * @brief 下一首按钮点击事件
+ * @param e 事件对象
+ */
 static void on_next_click(lv_event_t *e)
 {
     if (app_ctx->file_count == 0) {
@@ -1123,15 +1216,12 @@ static void on_next_click(lv_event_t *e)
         return;
     }
     
-    /* 循环到下一首 */
     app_ctx->current_track++;
     if (app_ctx->current_track >= app_ctx->file_count) {
         app_ctx->current_track = 0;
     }
     
     file_info_t *file = &app_ctx->files[app_ctx->current_track];
-    
-    /* 直接显示文件名作为歌名 */
     lv_label_set_text(app_ctx->now_playing_label, file->name);
     
     app_ctx->is_playing = 1;
@@ -1139,16 +1229,222 @@ static void on_next_click(lv_event_t *e)
     lv_obj_t *play_label = lv_obj_get_child(app_ctx->play_btn, 0);
     if (play_label) lv_label_set_text(play_label, LV_SYMBOL_PAUSE);
     
-    /* 重置进度条 */
     lv_bar_set_value(app_ctx->progress_bar, 0, LV_ANIM_OFF);
     
     show_notification("Next", lv_color_hex(0x3498db));
 }
 
+/**
+ * @brief 应用卡片点击事件
+ * @param e 事件对象
+ */
+static void on_app_click(lv_event_t *e)
+{
+    if (screen_switch_in_progress) return;
+    app_type_t app_type = (app_type_t)(intptr_t)lv_event_get_user_data(e);
+    create_app_screen(app_type);
+}
 
-/**********************
- *      文件操作
- **********************/
+/**
+ * @brief 返回按钮点击事件
+ * @param e 事件对象
+ */
+static void on_back_click(lv_event_t *e) 
+{ 
+    create_main_screen(); 
+}
+
+/**
+ * @brief 效果器配置返回按钮点击事件
+ * @param e 事件对象
+ */
+static void on_effect_config_back(lv_event_t *e) 
+{ 
+    create_app_screen(APP_AUDIO_PROCESSOR); 
+}
+
+/**
+ * @brief 效果器卡片点击事件
+ * @param e 事件对象
+ */
+static void on_effect_click(lv_event_t *e)
+{
+    if (screen_switch_in_progress) return;
+    int effect_index = (int)(intptr_t)lv_event_get_user_data(e);
+    app_ctx->current_effect_index = effect_index;
+    create_app_screen(APP_EFFECT_CONFIG);
+}
+
+/**
+ * @brief 文件点击事件
+ * @param e 事件对象
+ */
+static void on_file_click(lv_event_t *e)
+{
+    int file_index = (int)(intptr_t)lv_event_get_user_data(e);
+    
+    if (file_index == -1) {
+        char *last_slash = strrchr(app_ctx->current_path, '/');
+        if (last_slash) {
+            *last_slash = '\0';
+            if (strlen(app_ctx->current_path) == 0) strcpy(app_ctx->current_path, "./");
+        }
+        load_directory(app_ctx->current_path, app_ctx->screen.list);
+        return;
+    }
+
+    file_info_t *file = &app_ctx->files[file_index];
+    
+    if (file->is_dir) {
+        strcpy(app_ctx->current_path, file->path);
+        load_directory(app_ctx->current_path, app_ctx->screen.list);
+    } else {
+        static const char *btns[] = {"Delete", "Cancel", ""};
+        lv_obj_t *mbox = lv_msgbox_create(NULL, "Confirm Delete", 
+                                          "Delete this file?", btns, true);
+        lv_obj_set_style_bg_color(mbox, lv_color_hex(0x2c3e50), 0);
+        lv_obj_set_style_text_color(mbox, lv_color_white(), 0);
+        lv_obj_add_event_cb(mbox, on_delete_confirm, LV_EVENT_VALUE_CHANGED, (void *)(intptr_t)file_index);
+        lv_obj_center(mbox);
+    }
+}
+
+/**
+ * @brief 音频文件点击事件
+ * @param e 事件对象
+ */
+static void on_audio_file_click(lv_event_t *e)
+{
+    int file_index = (int)(intptr_t)lv_event_get_user_data(e);
+    if (file_index < 0 || file_index >= app_ctx->file_count) return;
+    
+    file_info_t *file = &app_ctx->files[file_index];
+    lv_label_set_text(app_ctx->now_playing_label, file->name);
+    
+    app_ctx->current_track = file_index;
+    app_ctx->is_playing = 1;
+    
+    lv_obj_t *play_label = lv_obj_get_child(app_ctx->play_btn, 0);
+    if (play_label) lv_label_set_text(play_label, LV_SYMBOL_PAUSE);
+}
+
+/**
+ * @brief 删除确认事件
+ * @param e 事件对象
+ */
+static void on_delete_confirm(lv_event_t *e)
+{
+    lv_obj_t *mbox = lv_event_get_current_target(e);
+    int file_index = (int)(intptr_t)lv_event_get_user_data(e);
+
+    if (lv_msgbox_get_active_btn(mbox) == 0 && remove(app_ctx->files[file_index].path) == 0) {
+        load_directory(app_ctx->current_path, app_ctx->screen.list);
+        show_notification("File deleted", lv_color_hex(0x2ecc71));
+    }
+    lv_msgbox_close(mbox);
+}
+
+/**
+ * @brief 播放/暂停按钮点击事件
+ * @param e 事件对象
+ */
+static void on_play_click(lv_event_t *e)
+{
+    if (app_ctx->current_track < 0) {
+        show_notification("No track selected", lv_color_hex(0xe74c3c));
+        return;
+    }
+    
+    app_ctx->is_playing = !app_ctx->is_playing;
+    
+    lv_obj_t *label = lv_obj_get_child(app_ctx->play_btn, 0);
+    if (label) lv_label_set_text(label, app_ctx->is_playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);
+}
+
+/**
+ * @brief 停止按钮点击事件
+ * @param e 事件对象
+ */
+static void on_stop_click(lv_event_t *e)
+{
+    app_ctx->is_playing = 0;
+    app_ctx->current_track = -1;
+    
+    lv_bar_set_value(app_ctx->progress_bar, 0, LV_ANIM_OFF);
+    lv_label_set_text(app_ctx->time_label, "00:00");
+    lv_label_set_text(app_ctx->now_playing_label, "Not playing");
+    
+    lv_obj_t *label = lv_obj_get_child(app_ctx->play_btn, 0);
+    if (label) lv_label_set_text(label, LV_SYMBOL_PLAY);
+}
+
+/**
+ * @brief 配置页面滑块值改变事件
+ * @param e 事件对象
+ */
+static void on_config_slider_change(lv_event_t *e)
+{
+    lv_obj_t *slider = lv_event_get_current_target(e);
+    param_slider_data_t *data = (param_slider_data_t *)lv_event_get_user_data(e);
+    
+    if (!data) return;
+    
+    int32_t value = lv_slider_get_value(slider);
+    
+    if (data->value_label && lv_obj_is_valid(data->value_label)) {
+        lv_label_set_text_fmt(data->value_label, "%d", (int)value);
+    }
+    
+    if (data->effect_index >= 0 && data->effect_index < 6) {
+        effect_t *effect = &app_ctx->effects[data->effect_index];
+        switch (data->param_index) {
+            case 0: effect->param1 = value; break;
+            case 1: effect->param2 = value; break;
+            case 2: effect->param3 = value; break;
+        }
+    }
+}
+
+/**
+ * @brief 效果器启用开关事件
+ * @param e 事件对象
+ */
+static void on_effect_enable_switch(lv_event_t *e)
+{
+    lv_obj_t *switch_btn = lv_event_get_current_target(e);
+    switch_data_t *data = (switch_data_t *)lv_event_get_user_data(e);
+    
+    if (!data || !data->effect) return;
+    
+    effect_t *effect = data->effect;
+    effect->enabled = (lv_obj_get_state(switch_btn) & LV_STATE_CHECKED) != 0;
+    
+    if (app_ctx->current_app == APP_AUDIO_PROCESSOR) {
+        if (effect->status_indicator && lv_obj_is_valid(effect->status_indicator)) {
+            if (effect->enabled) {
+                lv_obj_set_style_bg_color(effect->status_indicator, lv_color_hex(0x2ecc71), 0);
+            } else {
+                lv_obj_set_style_bg_color(effect->status_indicator, lv_color_hex(0xe74c3c), 0);
+            }
+        }
+        update_effect_chain_display();
+    }
+    
+    show_notification(effect->enabled ? "Effect enabled" : "Effect disabled",
+                     lv_color_hex(0x3498db));
+}
+/** @} */
+
+/**
+ * @defgroup FileOperations 文件操作函数
+ * @{
+ */
+
+/**
+ * @brief 加载目录内容
+ * @param path 目录路径
+ * @param list 列表对象
+ */
 static void load_directory(const char *path, lv_obj_t *list)
 {
     DIR *dir = opendir(path);
@@ -1191,9 +1487,11 @@ static void load_directory(const char *path, lv_obj_t *list)
     closedir(dir);
 }
 
-/**********************
- *      加载音频文件
- **********************/
+/**
+ * @brief 加载音频文件
+ * @param path 目录路径
+ * @param list 列表对象
+ */
 static void load_audio_files(const char *path, lv_obj_t *list)
 {
     DIR *dir = opendir(path);
@@ -1225,16 +1523,13 @@ static void load_audio_files(const char *path, lv_obj_t *list)
         strcpy(file->path, full_path);
         file->size = st.st_size;
 
-        /* 使用原始方式添加列表项，不修改任何颜色 */
         lv_obj_t *btn = lv_list_add_btn(list, LV_SYMBOL_AUDIO, entry->d_name);
-        
         lv_obj_add_event_cb(btn, on_audio_file_click, LV_EVENT_CLICKED, (void *)(intptr_t)app_ctx->file_count);
         
         app_ctx->file_count++;
     }
     closedir(dir);
     
-    /* 如果没有文件，显示提示信息 */
     if (app_ctx->file_count == 0) {
         lv_obj_t *empty_label = lv_label_create(list);
         lv_label_set_text(empty_label, "No audio files found");
@@ -1244,172 +1539,22 @@ static void load_audio_files(const char *path, lv_obj_t *list)
         lv_obj_center(empty_label);
     }
 }
+/** @} */
 
-/**********************
- *      事件处理
- **********************/
-static void on_app_click(lv_event_t *e)
-{
-    if (screen_switch_in_progress) return;
-    app_type_t app_type = (app_type_t)(intptr_t)lv_event_get_user_data(e);
-    create_app_screen(app_type);
-}
+/**
+ * @defgroup HelperFunctions 辅助函数
+ * @{
+ */
 
-static void on_back_click(lv_event_t *e) { create_main_screen(); }
-static void on_effect_config_back(lv_event_t *e) { create_app_screen(APP_AUDIO_PROCESSOR); }
-
-static void on_effect_click(lv_event_t *e)
-{
-    if (screen_switch_in_progress) return;
-    int effect_index = (int)(intptr_t)lv_event_get_user_data(e);
-    app_ctx->current_effect_index = effect_index;
-    create_app_screen(APP_EFFECT_CONFIG);
-}
-
-static void on_file_click(lv_event_t *e)
-{
-    int file_index = (int)(intptr_t)lv_event_get_user_data(e);
-    
-    if (file_index == -1) {
-        char *last_slash = strrchr(app_ctx->current_path, '/');
-        if (last_slash) {
-            *last_slash = '\0';
-            if (strlen(app_ctx->current_path) == 0) strcpy(app_ctx->current_path, "./");
-        }
-        load_directory(app_ctx->current_path, app_ctx->screen.list);
-        return;
-    }
-
-    file_info_t *file = &app_ctx->files[file_index];
-    
-    if (file->is_dir) {
-        strcpy(app_ctx->current_path, file->path);
-        load_directory(app_ctx->current_path, app_ctx->screen.list);
-    } else {
-        static const char *btns[] = {"Delete", "Cancel", ""};
-        lv_obj_t *mbox = lv_msgbox_create(NULL, "Confirm Delete", 
-                                          "Delete this file?", btns, true);
-        lv_obj_set_style_bg_color(mbox, lv_color_hex(0x2c3e50), 0);
-        lv_obj_set_style_text_color(mbox, lv_color_white(), 0);
-        lv_obj_add_event_cb(mbox, on_delete_confirm, LV_EVENT_VALUE_CHANGED, (void *)(intptr_t)file_index);
-        lv_obj_center(mbox);
-    }
-}
-
-static void on_audio_file_click(lv_event_t *e)
-{
-    int file_index = (int)(intptr_t)lv_event_get_user_data(e);
-    if (file_index < 0 || file_index >= app_ctx->file_count) return;
-    
-    file_info_t *file = &app_ctx->files[file_index];
-    lv_label_set_text(app_ctx->now_playing_label, file->name);
-    
-    app_ctx->current_track = file_index;
-    app_ctx->is_playing = 1;
-    
-    lv_obj_t *play_label = lv_obj_get_child(app_ctx->play_btn, 0);
-    if (play_label) lv_label_set_text(play_label, LV_SYMBOL_PAUSE);
-}
-
-static void on_delete_confirm(lv_event_t *e)
-{
-    lv_obj_t *mbox = lv_event_get_current_target(e);
-    int file_index = (int)(intptr_t)lv_event_get_user_data(e);
-
-    if (lv_msgbox_get_active_btn(mbox) == 0 && remove(app_ctx->files[file_index].path) == 0) {
-        load_directory(app_ctx->current_path, app_ctx->screen.list);
-        show_notification("File deleted", lv_color_hex(0x2ecc71));
-    }
-    lv_msgbox_close(mbox);
-}
-
-static void on_play_click(lv_event_t *e)
-{
-    if (app_ctx->current_track < 0) {
-        show_notification("No track selected", lv_color_hex(0xe74c3c));
-        return;
-    }
-    
-    app_ctx->is_playing = !app_ctx->is_playing;
-    
-    lv_obj_t *label = lv_obj_get_child(app_ctx->play_btn, 0);
-    if (label) lv_label_set_text(label, app_ctx->is_playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);
-}
-
-/**********************
- *      停止按钮点击事件 - 修复时间显示
- **********************/
-static void on_stop_click(lv_event_t *e)
-{
-    app_ctx->is_playing = 0;
-    app_ctx->current_track = -1;
-    
-    lv_bar_set_value(app_ctx->progress_bar, 0, LV_ANIM_OFF);
-    lv_label_set_text(app_ctx->time_label, "00:00");  // 改为"00:00"，而不是"00:00/03:00"
-    lv_label_set_text(app_ctx->now_playing_label, "Not playing");
-    
-    lv_obj_t *label = lv_obj_get_child(app_ctx->play_btn, 0);
-    if (label) lv_label_set_text(label, LV_SYMBOL_PLAY);
-}
-
-static void on_config_slider_change(lv_event_t *e)
-{
-    lv_obj_t *slider = lv_event_get_current_target(e);
-    param_slider_data_t *data = (param_slider_data_t *)lv_event_get_user_data(e);
-    
-    if (!data) return;
-    
-    int32_t value = lv_slider_get_value(slider);
-    
-    if (data->value_label && lv_obj_is_valid(data->value_label)) {
-        lv_label_set_text_fmt(data->value_label, "%d", (int)value);
-    }
-    
-    if (data->effect_index >= 0 && data->effect_index < 6) {
-        effect_t *effect = &app_ctx->effects[data->effect_index];
-        switch (data->param_index) {
-            case 0: effect->param1 = value; break;
-            case 1: effect->param2 = value; break;
-            case 2: effect->param3 = value; break;
-        }
-    }
-}
-
-static void on_effect_enable_switch(lv_event_t *e)
-{
-    lv_obj_t *switch_btn = lv_event_get_current_target(e);
-    switch_data_t *data = (switch_data_t *)lv_event_get_user_data(e);
-    
-    if (!data || !data->effect) return;
-    
-    effect_t *effect = data->effect;
-    effect->enabled = (lv_obj_get_state(switch_btn) & LV_STATE_CHECKED) != 0;
-    
-    if (app_ctx->current_app == APP_AUDIO_PROCESSOR) {
-        if (effect->status_indicator && lv_obj_is_valid(effect->status_indicator)) {
-            if (effect->enabled) {
-                lv_obj_set_style_bg_color(effect->status_indicator, lv_color_hex(0x2ecc71), 0);
-            } else {
-                lv_obj_set_style_bg_color(effect->status_indicator, lv_color_hex(0xe74c3c), 0);
-            }
-        }
-        update_effect_chain_display();
-    }
-    
-    show_notification(effect->enabled ? "Effect enabled" : "Effect disabled",
-                     lv_color_hex(0x3498db));
-}
-
-/**********************
- *      更新效果链显示 - 优化字符串操作
- **********************/
+/**
+ * @brief 更新效果链显示
+ */
 static void update_effect_chain_display(void)
 {
     if (!app_ctx->chain_label || !lv_obj_is_valid(app_ctx->chain_label)) {
         return;
     }
     
-    /* 预分配足够大的缓冲区 */
     static char chain_text[128];
     chain_text[0] = '\0';
     int enabled_count = 0;
@@ -1438,6 +1583,11 @@ static void update_effect_chain_display(void)
     lv_label_set_text(app_ctx->chain_label, chain_text);
 }
 
+/**
+ * @brief 显示通知
+ * @param msg 消息内容
+ * @param color 背景颜色
+ */
 static void show_notification(const char *msg, lv_color_t color)
 {
     lv_obj_t *notif = lv_label_create(lv_scr_act());
@@ -1454,9 +1604,28 @@ static void show_notification(const char *msg, lv_color_t color)
     lv_timer_set_repeat_count(timer, 1);
 }
 
-/**********************
- *      更新播放器定时器 - 修复时间显示
- **********************/
+/**
+ * @brief 释放回调数据
+ * @param e 事件对象
+ */
+static void free_callback_data(lv_event_t *e)
+{
+    void *data = lv_event_get_user_data(e);
+    if (data) {
+        free(data);
+    }
+}
+/** @} */
+
+/**
+ * @defgroup TimerCallbacks 定时器回调函数
+ * @{
+ */
+
+/**
+ * @brief 音频播放器定时器回调
+ * @param timer 定时器对象
+ */
 static void audio_player_timer_cb(lv_timer_t *timer)
 {
     app_context_t *ctx = (app_context_t *)timer->user_data;
@@ -1469,12 +1638,10 @@ static void audio_player_timer_cb(lv_timer_t *timer)
     int total = 180;
     int current = (progress * total) / 100;
     
-    /* 格式化时间显示 mm:ss */
     char time_str[16];
     sprintf(time_str, "%02d:%02d", current / 60, current % 60);
     lv_label_set_text(ctx->time_label, time_str);
     
-    /* 当播放完成时自动停止 */
     if (progress == 100) {
         ctx->is_playing = 0;
         lv_obj_t *play_label = lv_obj_get_child(ctx->play_btn, 0);
@@ -1482,24 +1649,12 @@ static void audio_player_timer_cb(lv_timer_t *timer)
     }
 }
 
-/**********************
- *      添加回调数据释放函数
- **********************/
-static void free_callback_data(lv_event_t *e)
-{
-    void *data = lv_event_get_user_data(e);
-    if (data) {
-        free(data);
-    }
-}
-
-/**********************
- *      音频处理器定时器回调 - 用于定期更新效果链（如果需要）
- **********************/
+/**
+ * @brief 音频处理器定时器回调
+ * @param timer 定时器对象
+ */
 static void audio_processor_timer_cb(lv_timer_t *timer)
 {
-    /* 目前不需要任何定时更新，可以禁用 */
-    /* 如果需要未来添加功能，再启用 */
     (void)timer;
-    /* 可以在这里添加需要定期更新的逻辑 */
 }
+/** @} */
