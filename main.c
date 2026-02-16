@@ -59,7 +59,8 @@ typedef enum {
     APP_NONE = 0,
     APP_FILE_MANAGER,
     APP_AUDIO_PLAYER,
-    APP_AUDIO_PROCESSOR
+    APP_AUDIO_PROCESSOR,
+    APP_EFFECT_CONFIG
 } app_type_t;
 
 typedef enum {
@@ -85,6 +86,8 @@ typedef struct {
     int default_param2;
     int default_param3;
     const char *param_names[3];
+    int param_min[3];
+    int param_max[3];
 } effect_config_t;
 
 typedef struct {
@@ -95,14 +98,21 @@ typedef struct {
     int param3;
     char name[32];
     lv_obj_t *btn;
+    lv_obj_t *status_indicator;
 } effect_t;
 
-/* 弹窗滑块数据结构 */
+/* 滑块数据结构 */
 typedef struct {
     int effect_index;
     int param_index;
     lv_obj_t *value_label;
 } param_slider_data_t;
+
+/* 开关事件数据结构 */
+typedef struct {
+    int effect_index;
+    effect_t *effect;
+} switch_data_t;
 
 typedef struct {
     lv_obj_t *screen;
@@ -119,6 +129,7 @@ typedef struct {
     
     /* 当前状态 */
     app_type_t current_app;
+    int current_effect_index;
     screen_components_t screen;
     
     /* 文件相关 */
@@ -139,7 +150,7 @@ typedef struct {
     int effect_count;
     lv_obj_t *effect_cont;
     lv_obj_t *param_cont;
-    lv_obj_t *chain_label;  // 效果链显示标签
+    lv_obj_t *chain_label;
     
     /* 定时器管理 */
     lv_timer_t *app_timer;
@@ -148,11 +159,11 @@ typedef struct {
 
 /* 效果器预设配置 */
 static const effect_config_t effect_presets[] = {
-    {"Reverb", EFFECT_REVERB, 50, 0, 0, {"Mix", "", ""}},
-    {"Echo", EFFECT_ECHO, 30, 0, 0, {"Delay", "", ""}},
-    {"Distortion", EFFECT_DISTORTION, 70, 0, 0, {"Drive", "", ""}},
-    {"Equalizer", EFFECT_EQ, 50, 50, 50, {"Low", "Mid", "High"}},
-    {"Filter", EFFECT_FILTER, 1000, 0, 0, {"Freq", "", ""}}
+    {"Reverb", EFFECT_REVERB, 50, 0, 0, {"Mix", "", ""}, {0, 0, 0}, {100, 0, 0}},
+    {"Echo", EFFECT_ECHO, 30, 0, 0, {"Delay", "", ""}, {0, 0, 0}, {100, 0, 0}},
+    {"Distortion", EFFECT_DISTORTION, 70, 0, 0, {"Drive", "", ""}, {0, 0, 0}, {100, 0, 0}},
+    {"Equalizer", EFFECT_EQ, 50, 50, 50, {"Low", "Mid", "High"}, {0, 0, 0}, {100, 100, 100}},
+    {"Filter", EFFECT_FILTER, 1000, 0, 0, {"Freq", "", ""}, {20, 0, 0}, {20000, 0, 0}}
 };
 
 /**********************
@@ -170,6 +181,7 @@ static void setup_header(lv_obj_t *screen, const char *title);
 static void setup_file_manager_screen(void);
 static void setup_audio_player_screen(void);
 static void setup_audio_processor_screen(void);
+static void setup_effect_config_screen(int effect_index);
 static void file_manager_timer_cb(lv_timer_t *timer);
 static void audio_player_timer_cb(lv_timer_t *timer);
 static void audio_processor_timer_cb(lv_timer_t *timer);
@@ -181,17 +193,14 @@ static void on_file_click(lv_event_t *e);
 static void on_audio_file_click(lv_event_t *e);
 static void on_delete_confirm(lv_event_t *e);
 static void on_effect_click(lv_event_t *e);
+static void on_effect_config_back(lv_event_t *e);
 static void on_play_click(lv_event_t *e);
 static void on_stop_click(lv_event_t *e);
 static void on_slider_change(lv_event_t *e);
+static void on_config_slider_change(lv_event_t *e);
+static void on_effect_enable_switch(lv_event_t *e);
 static void show_notification(const char *msg, lv_color_t color);
 static void cleanup_app(void);
-
-/* 新添加的函数声明 */
-static void create_parameter_dialog(int effect_index);
-static void on_dialog_close(lv_event_t *e);
-static void on_dialog_slider_change(lv_event_t *e);
-static void on_effect_switch(lv_event_t *e);
 static void update_effect_chain_display(void);
 
 /**********************
@@ -206,8 +215,12 @@ int main(int argc, char **argv)
     hal_init();
 
     app_ctx = (app_context_t *)calloc(1, sizeof(app_context_t));
+    if (!app_ctx) {
+        return -1;
+    }
     strcpy(app_ctx->current_path, "./");
     app_ctx->main_screen = NULL;
+    app_ctx->current_effect_index = -1;
 
     create_main_screen();
 
@@ -337,15 +350,29 @@ static void create_main_screen(void)
  */
 static void create_app_screen(app_type_t app_type)
 {
-    cleanup_app();
+    /* 先停止定时器，但不清除屏幕 */
+    if (app_ctx->app_timer) {
+        app_ctx->timer_running = 0;
+        lv_timer_del(app_ctx->app_timer);
+        app_ctx->app_timer = NULL;
+    }
+
+    /* 延迟删除旧的屏幕对象 */
+    if (app_ctx->screen.screen) {
+        lv_obj_del_async(app_ctx->screen.screen);
+        app_ctx->screen.screen = NULL;
+    }
     
     app_ctx->current_app = app_type;
+    
+    /* 创建新屏幕 */
     app_ctx->screen.screen = lv_obj_create(NULL);
     
     const char *titles[] = {
         [APP_FILE_MANAGER] = "File Manager",
         [APP_AUDIO_PLAYER] = "Audio Player",
-        [APP_AUDIO_PROCESSOR] = "Audio Processor"
+        [APP_AUDIO_PROCESSOR] = "Audio Processor",
+        [APP_EFFECT_CONFIG] = "Effect Configuration"
     };
     
     setup_header(app_ctx->screen.screen, titles[app_type]);
@@ -369,6 +396,9 @@ static void create_app_screen(app_type_t app_type)
         case APP_AUDIO_PROCESSOR:
             setup_audio_processor_screen();
             break;
+        case APP_EFFECT_CONFIG:
+            setup_effect_config_screen(app_ctx->current_effect_index);
+            break;
         default:
             break;
     }
@@ -391,7 +421,8 @@ static void setup_header(lv_obj_t *screen, const char *title)
 
     /* 返回按钮 */
     lv_obj_t *back_btn = CREATE_BTN(header, BACK_BTN_SIZE, HEADER_HEIGHT - 10, 
-                                    on_back_click, NULL);
+                                    app_ctx->current_app == APP_EFFECT_CONFIG ? 
+                                    on_effect_config_back : on_back_click, NULL);
     lv_obj_align(back_btn, LV_ALIGN_LEFT_MID, 5, 0);
     
     lv_obj_t *back_label = lv_label_create(back_btn);
@@ -507,7 +538,7 @@ static void setup_audio_player_screen(void)
 }
 
 /**
- * @brief 设置音频处理器界面 - 弹出窗口参数调节版本
+ * @brief 设置音频处理器主界面
  */
 static void setup_audio_processor_screen(void)
 {
@@ -638,7 +669,7 @@ static void setup_audio_processor_screen(void)
         lv_obj_align(status_indicator, LV_ALIGN_TOP_RIGHT, -5, 5);
         
         effect->btn = btn;
-        lv_obj_set_user_data(btn, status_indicator);
+        effect->status_indicator = status_indicator;
     }
 
     /* ==================== 效果链显示区域 ==================== */
@@ -669,199 +700,239 @@ static void setup_audio_processor_screen(void)
 }
 
 /**
- * @brief 创建参数调节弹窗
+ * @brief 设置效果器配置页面 - 完整修复版本
  */
-static void create_parameter_dialog(int effect_index)
+static void setup_effect_config_screen(int effect_index)
 {
+    if (effect_index < 0 || effect_index >= 6) return;
+    
     effect_t *effect = &app_ctx->effects[effect_index];
     
-    /* 创建弹窗 */
-    lv_obj_t *dialog = lv_obj_create(lv_scr_act());
-    lv_obj_set_size(dialog, 380, 400);
-    lv_obj_center(dialog);
-    lv_obj_set_style_border_width(dialog, 2, 0);
-    lv_obj_set_style_border_color(dialog, lv_palette_main(LV_PALETTE_BLUE), 0);
-    lv_obj_set_style_radius(dialog, 15, 0);
-    lv_obj_set_style_shadow_width(dialog, 20, 0);
-    lv_obj_set_style_bg_color(dialog, lv_palette_darken(LV_PALETTE_GREY, 3), 0);
-    lv_obj_set_style_pad_all(dialog, 15, 0);
+    /* 获取屏幕实际尺寸 */
+    lv_coord_t screen_h = lv_obj_get_height(lv_scr_act());
+    lv_coord_t header_height = HEADER_HEIGHT;
+    lv_coord_t content_height = screen_h - header_height - 20;
     
-    /* 标题 */
-    lv_obj_t *title = lv_label_create(dialog);
-    lv_label_set_text_fmt(title, "Configure: %s", effect->name);
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(title, lv_palette_main(LV_PALETTE_BLUE), 0);
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 0);
-
-    /* 关闭按钮 */
-    lv_obj_t *close_btn = lv_btn_create(dialog);
-    lv_obj_set_size(close_btn, 30, 30);
-    lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT, -5, 5);
-    lv_obj_set_style_radius(close_btn, LV_RADIUS_CIRCLE, 0);
-    lv_obj_add_event_cb(close_btn, on_dialog_close, LV_EVENT_CLICKED, dialog);
-    
-    lv_obj_t *close_label = lv_label_create(close_btn);
-    lv_label_set_text(close_label, LV_SYMBOL_CLOSE);
-    lv_obj_center(close_label);
-
-    /* 获取效果器参数配置 */
-    int param_count = 0;
+    /* 获取效果器配置 */
     const effect_config_t *config = NULL;
-    
     for (size_t i = 0; i < sizeof(effect_presets) / sizeof(effect_presets[0]); i++) {
         if (effect_presets[i].type == effect->type) {
             config = &effect_presets[i];
-            for (int j = 0; j < 3; j++) {
-                if (strlen(effect_presets[i].param_names[j]) > 0) {
-                    param_count++;
-                }
-            }
             break;
         }
     }
-
+    
+    if (!config && effect_index >= app_ctx->effect_count) {
+        /* 空白槽位，显示简单配置 */
+        lv_obj_t *label = lv_label_create(app_ctx->screen.main_cont);
+        lv_label_set_text(label, "Empty Effect Slot\n\nSelect effect type:");
+        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_center(label);
+        return;
+    }
+    
+    /* 主容器设置为垂直布局 */
+    lv_obj_set_flex_flow(app_ctx->screen.main_cont, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_all(app_ctx->screen.main_cont, 10, 0);
+    lv_obj_set_style_pad_row(app_ctx->screen.main_cont, 10, 0);
+    
+    /* 效果器标题和开关 */
+    lv_obj_t *header_cont = lv_obj_create(app_ctx->screen.main_cont);
+    lv_obj_set_size(header_cont, LV_PCT(100), 60);
+    lv_obj_set_style_border_width(header_cont, 1, 0);
+    lv_obj_set_style_border_color(header_cont, lv_palette_main(LV_PALETTE_GREY), 0);
+    lv_obj_set_style_radius(header_cont, 8, 0);
+    lv_obj_set_style_pad_all(header_cont, 10, 0);
+    lv_obj_set_style_bg_opa(header_cont, LV_OPA_20, 0);
+    
+    lv_obj_t *title_label = lv_label_create(header_cont);
+    lv_label_set_text_fmt(title_label, "%s Settings", effect->name);
+    lv_obj_set_style_text_font(title_label, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(title_label, lv_palette_main(LV_PALETTE_BLUE), 0);
+    lv_obj_align(title_label, LV_ALIGN_LEFT_MID, 0, 0);
+    
+    lv_obj_t *enable_switch = lv_switch_create(header_cont);
+    lv_obj_set_size(enable_switch, 60, 30);
+    lv_obj_align(enable_switch, LV_ALIGN_RIGHT_MID, 0, 0);
+    if (effect->enabled) {
+        lv_obj_add_state(enable_switch, LV_STATE_CHECKED);
+    }
+    
+    /* 创建开关事件回调的数据结构 */
+    switch_data_t *switch_data = (switch_data_t *)malloc(sizeof(switch_data_t));
+    if (switch_data) {
+        switch_data->effect_index = effect_index;
+        switch_data->effect = effect;
+        lv_obj_add_event_cb(enable_switch, on_effect_enable_switch, LV_EVENT_VALUE_CHANGED, switch_data);
+    }
+    
+    /* 统计有效参数数量 */
+    int param_count = 0;
+    for (int i = 0; i < 3; i++) {
+        if (strlen(config->param_names[i]) > 0) {
+            param_count++;
+        }
+    }
+    
+    /* 计算参数容器的高度 */
+    lv_coord_t params_height = content_height - 80;
+    
     /* 参数容器 */
-    lv_obj_t *params_cont = lv_obj_create(dialog);
-    lv_obj_set_size(params_cont, LV_PCT(100), 260);
-    lv_obj_align(params_cont, LV_ALIGN_TOP_MID, 0, 40);
+    lv_obj_t *params_cont = lv_obj_create(app_ctx->screen.main_cont);
+    lv_obj_set_size(params_cont, LV_PCT(100), params_height);
     lv_obj_set_style_border_width(params_cont, 0, 0);
     lv_obj_set_style_bg_opa(params_cont, LV_OPA_TRANSP, 0);
     lv_obj_set_flex_flow(params_cont, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(params_cont, 15, 0);
-
+    lv_obj_set_style_pad_row(params_cont, 10, 0);
+    lv_obj_set_style_pad_all(params_cont, 5, 0);
+    
+    /* 计算每个参数项的高度 */
+    lv_coord_t param_item_height = (params_height - (param_count - 1) * 10) / param_count;
+    if (param_item_height > 80) param_item_height = 80;
+    if (param_item_height < 60) param_item_height = 60;  // 设置最小高度
+    
     /* 创建参数滑块 */
     int param_values[3] = {effect->param1, effect->param2, effect->param3};
     
     for (int i = 0; i < param_count; i++) {
         lv_obj_t *param_cont = lv_obj_create(params_cont);
-        lv_obj_set_size(param_cont, LV_PCT(100), 70);
+        lv_obj_set_size(param_cont, LV_PCT(100), param_item_height);
         lv_obj_set_style_border_width(param_cont, 1, 0);
         lv_obj_set_style_border_color(param_cont, lv_palette_main(LV_PALETTE_GREY), 0);
         lv_obj_set_style_radius(param_cont, 8, 0);
         lv_obj_set_style_pad_all(param_cont, 8, 0);
-
-        /* 参数名 */
-        lv_obj_t *name_label = lv_label_create(param_cont);
+        lv_obj_set_style_bg_opa(param_cont, LV_OPA_10, 0);
+        
+        /* 参数名和数值显示 */
+        lv_obj_t *name_value_cont = lv_obj_create(param_cont);
+        lv_obj_set_size(name_value_cont, LV_PCT(100), 20);
+        lv_obj_set_style_border_width(name_value_cont, 0, 0);
+        lv_obj_set_style_bg_opa(name_value_cont, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_pad_all(name_value_cont, 0, 0);
+        
+        lv_obj_t *name_label = lv_label_create(name_value_cont);
         lv_label_set_text(name_label, config->param_names[i]);
-        lv_obj_set_style_text_font(name_label, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(name_label, &lv_font_montserrat_12, 0);
         lv_obj_set_style_text_color(name_label, lv_palette_main(LV_PALETTE_ORANGE), 0);
-        lv_obj_align(name_label, LV_ALIGN_TOP_LEFT, 0, 0);
-
-        /* 参数值 */
-        lv_obj_t *value_label = lv_label_create(param_cont);
+        lv_obj_align(name_label, LV_ALIGN_LEFT_MID, 0, 0);
+        
+        lv_obj_t *value_label = lv_label_create(name_value_cont);
         lv_label_set_text_fmt(value_label, "%d", param_values[i]);
-        lv_obj_set_style_text_font(value_label, &lv_font_montserrat_14, 0);
-        lv_obj_align(value_label, LV_ALIGN_TOP_RIGHT, 0, 0);
-
+        lv_obj_set_style_text_font(value_label, &lv_font_montserrat_12, 0);
+        lv_obj_align(value_label, LV_ALIGN_RIGHT_MID, 0, 0);
+        
         /* 滑块 */
         lv_obj_t *slider = lv_slider_create(param_cont);
-        lv_obj_set_size(slider, LV_PCT(100), 10);
+        lv_obj_set_size(slider, LV_PCT(100), 8);
         lv_obj_align(slider, LV_ALIGN_BOTTOM_MID, 0, 0);
-        lv_slider_set_range(slider, 0, 100);
+        lv_slider_set_range(slider, config->param_min[i], config->param_max[i]);
         lv_slider_set_value(slider, param_values[i], LV_ANIM_OFF);
         
-        /* 存储参数信息 */
+        /* 存储参数信息用于回调 */
         param_slider_data_t *slider_data = (param_slider_data_t *)malloc(sizeof(param_slider_data_t));
-        slider_data->effect_index = effect_index;
-        slider_data->param_index = i;
-        slider_data->value_label = value_label;
-        
-        lv_obj_add_event_cb(slider, on_dialog_slider_change, LV_EVENT_VALUE_CHANGED, slider_data);
+        if (slider_data) {
+            slider_data->effect_index = effect_index;
+            slider_data->param_index = i;
+            slider_data->value_label = value_label;
+            lv_obj_add_event_cb(slider, on_config_slider_change, LV_EVENT_VALUE_CHANGED, slider_data);
+        }
     }
-
-    /* 启用/禁用开关 */
-    lv_obj_t *switch_cont = lv_obj_create(dialog);
-    lv_obj_set_size(switch_cont, LV_PCT(100), 50);
-    lv_obj_align(switch_cont, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_border_width(switch_cont, 0, 0);
-    lv_obj_set_style_bg_opa(switch_cont, LV_OPA_TRANSP, 0);
-    lv_obj_set_flex_flow(switch_cont, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(switch_cont, LV_FLEX_ALIGN_SPACE_BETWEEN, 
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
-    lv_obj_t *switch_label = lv_label_create(switch_cont);
-    lv_label_set_text(switch_label, "Enable Effect");
-    lv_obj_set_style_text_font(switch_label, &lv_font_montserrat_14, 0);
-
-    lv_obj_t *switch_btn = lv_switch_create(switch_cont);
-    lv_obj_set_size(switch_btn, 50, 25);
-    if (effect->enabled) {
-        lv_obj_add_state(switch_btn, LV_STATE_CHECKED);
-    }
-    lv_obj_add_event_cb(switch_btn, on_effect_switch, LV_EVENT_VALUE_CHANGED, 
-                       (void *)(intptr_t)effect_index);
+    
+    /* 提示信息 */
+    lv_obj_t *info_label = lv_label_create(app_ctx->screen.main_cont);
+    lv_label_set_text(info_label, "Audio data processed in slot order");
+    lv_obj_set_style_text_font(info_label, &lv_font_montserrat_10, 0);
+    lv_obj_set_style_text_color(info_label, lv_palette_main(LV_PALETTE_GREY), 0);
+    lv_obj_align(info_label, LV_ALIGN_BOTTOM_MID, 0, -5);
 }
 
 /**
- * @brief 效果器点击事件处理 - 弹出参数调节窗口
+ * @brief 效果器点击事件 - 打开配置页面
  */
 static void on_effect_click(lv_event_t *e)
 {
     int effect_index = (int)(intptr_t)lv_event_get_user_data(e);
-    create_parameter_dialog(effect_index);
+    app_ctx->current_effect_index = effect_index;
+    create_app_screen(APP_EFFECT_CONFIG);
 }
 
 /**
- * @brief 弹窗关闭事件
+ * @brief 从配置页面返回主处理器页面
  */
-static void on_dialog_close(lv_event_t *e)
+static void on_effect_config_back(lv_event_t *e)
 {
-    lv_obj_t *dialog = (lv_obj_t *)lv_event_get_user_data(e);
-    
-    /* 更新效果链显示 */
-    update_effect_chain_display();
-    
-    lv_obj_del_async(dialog);
+    (void)e;
+    create_app_screen(APP_AUDIO_PROCESSOR);
 }
 
 /**
- * @brief 弹窗内滑块值改变事件
+ * @brief 配置页面滑块值改变事件
  */
-static void on_dialog_slider_change(lv_event_t *e)
+static void on_config_slider_change(lv_event_t *e)
 {
     lv_obj_t *slider = lv_event_get_current_target(e);
     param_slider_data_t *data = (param_slider_data_t *)lv_event_get_user_data(e);
     
+    if (!data) return;
+    
     int32_t value = lv_slider_get_value(slider);
-    lv_label_set_text_fmt(data->value_label, "%d", (int)value);
+    
+    /* 更新值标签 */
+    if (data->value_label && lv_obj_is_valid(data->value_label)) {
+        lv_label_set_text_fmt(data->value_label, "%d", (int)value);
+    }
     
     /* 更新效果器参数 */
-    effect_t *effect = &app_ctx->effects[data->effect_index];
-    switch (data->param_index) {
-        case 0: effect->param1 = value; break;
-        case 1: effect->param2 = value; break;
-        case 2: effect->param3 = value; break;
+    if (data->effect_index >= 0 && data->effect_index < 6) {
+        effect_t *effect = &app_ctx->effects[data->effect_index];
+        switch (data->param_index) {
+            case 0: effect->param1 = value; break;
+            case 1: effect->param2 = value; break;
+            case 2: effect->param3 = value; break;
+        }
     }
 }
 
 /**
- * @brief 效果器开关事件
+ * @brief 效果器启用开关事件 - 修复版本
  */
-static void on_effect_switch(lv_event_t *e)
+static void on_effect_enable_switch(lv_event_t *e)
 {
-    int effect_index = (int)(intptr_t)lv_event_get_user_data(e);
     lv_obj_t *switch_btn = lv_event_get_current_target(e);
+    switch_data_t *data = (switch_data_t *)lv_event_get_user_data(e);
     
-    effect_t *effect = &app_ctx->effects[effect_index];
+    if (!data || !data->effect) return;
+    
+    effect_t *effect = data->effect;
     effect->enabled = (lv_obj_get_state(switch_btn) & LV_STATE_CHECKED) != 0;
     
-    /* 更新效果器框的状态指示器 */
-    lv_obj_t *status_indicator = (lv_obj_t *)lv_obj_get_user_data(effect->btn);
-    if (effect->enabled) {
-        lv_obj_set_style_bg_color(status_indicator, lv_palette_main(LV_PALETTE_GREEN), 0);
-    } else {
-        lv_obj_set_style_bg_color(status_indicator, lv_palette_main(LV_PALETTE_RED), 0);
+    /* 只在主界面存在时更新状态指示器 */
+    if (app_ctx->current_app == APP_AUDIO_PROCESSOR) {
+        /* 检查状态指示器是否有效 */
+        if (effect->status_indicator && lv_obj_is_valid(effect->status_indicator)) {
+            if (effect->enabled) {
+                lv_obj_set_style_bg_color(effect->status_indicator, lv_palette_main(LV_PALETTE_GREEN), 0);
+            } else {
+                lv_obj_set_style_bg_color(effect->status_indicator, lv_palette_main(LV_PALETTE_RED), 0);
+            }
+        }
+        /* 更新效果链显示 */
+        update_effect_chain_display();
     }
     
-    /* 更新效果链显示 */
-    update_effect_chain_display();
+    show_notification(effect->enabled ? "Effect enabled" : "Effect disabled",
+                     lv_palette_main(LV_PALETTE_BLUE));
 }
 
 /**
- * @brief 更新效果链显示
+ * @brief 更新效果链显示 - 添加对象有效性检查
  */
 static void update_effect_chain_display(void)
 {
+    if (!app_ctx->chain_label || !lv_obj_is_valid(app_ctx->chain_label)) {
+        return;
+    }
+    
     char chain_text[128] = "";
     int enabled_count = 0;
     
@@ -879,10 +950,7 @@ static void update_effect_chain_display(void)
         strcpy(chain_text, "None");
     }
     
-    /* 更新显示 */
-    if (app_ctx->chain_label) {
-        lv_label_set_text(app_ctx->chain_label, chain_text);
-    }
+    lv_label_set_text(app_ctx->chain_label, chain_text);
 }
 
 /**
@@ -891,7 +959,6 @@ static void update_effect_chain_display(void)
 static void file_manager_timer_cb(lv_timer_t *timer)
 {
     (void)timer;
-    /* 文件系统监控逻辑可以在这里添加 */
 }
 
 static void audio_player_timer_cb(lv_timer_t *timer)
@@ -914,16 +981,6 @@ static void audio_processor_timer_cb(lv_timer_t *timer)
 {
     app_context_t *ctx = (app_context_t *)timer->user_data;
     if (!ctx || !ctx->timer_running) return;
-
-    static int buffer_index = 0;
-    buffer_index = !buffer_index;
-
-    /* 音频处理逻辑 */
-    for (int i = 0; i < ctx->effect_count; i++) {
-        if (ctx->effects[i].enabled) {
-            /* 根据效果器类型处理音频 */
-        }
-    }
 }
 
 /**
@@ -1050,11 +1107,7 @@ static void on_app_click(lv_event_t *e)
 static void on_back_click(lv_event_t *e)
 {
     (void)e;
-    cleanup_app();
-    
-    if (app_ctx->main_screen) {
-        lv_scr_load(app_ctx->main_screen);
-    }
+    create_main_screen();
 }
 
 static void on_file_click(lv_event_t *e)
