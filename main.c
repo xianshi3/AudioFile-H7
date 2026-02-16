@@ -455,95 +455,118 @@ static void setup_device_info_screen(void)
 {
     lv_obj_t *cont = app_ctx->screen.main_cont;
     
+    /* 清空容器 */
+    lv_obj_clean(cont);
+    
+    /* 计内容宽度 */
+    lv_coord_t content_width = 410;
+    lv_coord_t padding = 10;
+    
     lv_coord_t current_y = 20;
     
-    /* 标题图标 */
+    /* 标题图标 - 使用完整宽度 */
     lv_obj_t *icon_title = lv_label_create(cont);
     lv_label_set_text(icon_title, LV_SYMBOL_SETTINGS " System Information");
     lv_obj_set_style_text_font(icon_title, &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(icon_title, lv_color_hex(0x3498db), 0);
-    lv_obj_set_pos(icon_title, 20, current_y);
+    lv_obj_set_pos(icon_title, padding, current_y);
+    lv_obj_set_size(icon_title, content_width, 30);
     current_y += 40;
     
-    /* 设备信息卡片 */
+    /* 设备信息卡片 - 使用完整宽度 */
     lv_obj_t *info_card = lv_obj_create(cont);
-    lv_obj_set_size(info_card, 440, 320);
-    lv_obj_set_pos(info_card, 10, current_y);
+    lv_obj_set_size(info_card, content_width, 320);
+    lv_obj_set_pos(info_card, padding, current_y);
     lv_obj_set_style_border_width(info_card, 1, 0);
     lv_obj_set_style_border_color(info_card, lv_color_hex(0x34495e), 0);
     lv_obj_set_style_bg_color(info_card, lv_color_hex(0x2c3e50), 0);
     lv_obj_set_style_radius(info_card, 8, 0);
     lv_obj_set_style_pad_all(info_card, 15, 0);
     
+    /* 计算卡片内的布局 - 左列标签宽度100px，右列值宽度300px */
+    lv_coord_t label_x = 10;
+    lv_coord_t value_x = 120;
+    lv_coord_t line_y_step = 35;
+    
     /* 设备名称 */
     lv_obj_t *device_label = lv_label_create(info_card);
     lv_label_set_text(device_label, "Device:");
     lv_obj_set_style_text_font(device_label, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(device_label, lv_color_hex(0x888888), 0);
-    lv_obj_set_pos(device_label, 10, 10);
+    lv_obj_set_pos(device_label, label_x, 10);
+    lv_obj_set_size(device_label, 100, 20);
     
     lv_obj_t *device_value = lv_label_create(info_card);
     lv_label_set_text(device_value, "STM32H743VIT6");
     lv_obj_set_style_text_font(device_value, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(device_value, lv_color_hex(0xffffff), 0);
-    lv_obj_set_pos(device_value, 150, 10);
+    lv_obj_set_pos(device_value, value_x, 10);
+    lv_obj_set_size(device_value, 300, 20);
     
     /* 内核 */
     lv_obj_t *core_label = lv_label_create(info_card);
     lv_label_set_text(core_label, "Core:");
     lv_obj_set_style_text_font(core_label, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(core_label, lv_color_hex(0x888888), 0);
-    lv_obj_set_pos(core_label, 10, 40);
+    lv_obj_set_pos(core_label, label_x, 10 + line_y_step);
+    lv_obj_set_size(core_label, 100, 20);
     
     lv_obj_t *core_value = lv_label_create(info_card);
     lv_label_set_text(core_value, "Cortex-M7 @ 480MHz");
     lv_obj_set_style_text_font(core_value, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(core_value, lv_color_hex(0xffffff), 0);
-    lv_obj_set_pos(core_value, 150, 40);
+    lv_obj_set_pos(core_value, value_x, 10 + line_y_step);
+    lv_obj_set_size(core_value, 300, 20);
     
     /* 闪存 */
     lv_obj_t *flash_label = lv_label_create(info_card);
     lv_label_set_text(flash_label, "Flash:");
     lv_obj_set_style_text_font(flash_label, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(flash_label, lv_color_hex(0x888888), 0);
-    lv_obj_set_pos(flash_label, 10, 70);
+    lv_obj_set_pos(flash_label, label_x, 10 + line_y_step * 2);
+    lv_obj_set_size(flash_label, 100, 20);
     
     lv_obj_t *flash_value = lv_label_create(info_card);
     lv_label_set_text(flash_value, "2MB");
     lv_obj_set_style_text_font(flash_value, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(flash_value, lv_color_hex(0xffffff), 0);
-    lv_obj_set_pos(flash_value, 150, 70);
+    lv_obj_set_pos(flash_value, value_x, 10 + line_y_step * 2);
+    lv_obj_set_size(flash_value, 300, 20);
     
     /* RAM */
     lv_obj_t *ram_label = lv_label_create(info_card);
     lv_label_set_text(ram_label, "RAM:");
     lv_obj_set_style_text_font(ram_label, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(ram_label, lv_color_hex(0x888888), 0);
-    lv_obj_set_pos(ram_label, 10, 100);
+    lv_obj_set_pos(ram_label, label_x, 10 + line_y_step * 3);
+    lv_obj_set_size(ram_label, 100, 20);
     
     lv_obj_t *ram_value = lv_label_create(info_card);
     lv_label_set_text(ram_value, "1MB");
     lv_obj_set_style_text_font(ram_value, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(ram_value, lv_color_hex(0xffffff), 0);
-    lv_obj_set_pos(ram_value, 150, 100);
+    lv_obj_set_pos(ram_value, value_x, 10 + line_y_step * 3);
+    lv_obj_set_size(ram_value, 300, 20);
     
     /* 屏幕 */
     lv_obj_t *screen_label = lv_label_create(info_card);
     lv_label_set_text(screen_label, "Display:");
     lv_obj_set_style_text_font(screen_label, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(screen_label, lv_color_hex(0x888888), 0);
-    lv_obj_set_pos(screen_label, 10, 130);
+    lv_obj_set_pos(screen_label, label_x, 10 + line_y_step * 4);
+    lv_obj_set_size(screen_label, 100, 20);
     
     lv_obj_t *screen_value = lv_label_create(info_card);
     lv_label_set_text(screen_value, "460x460 RGB LCD");
     lv_obj_set_style_text_font(screen_value, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(screen_value, lv_color_hex(0xffffff), 0);
-    lv_obj_set_pos(screen_value, 150, 130);
+    lv_obj_set_pos(screen_value, value_x, 10 + line_y_step * 4);
+    lv_obj_set_size(screen_value, 300, 20);
     
     /* 分隔线 */
     lv_obj_t *line1 = lv_obj_create(info_card);
-    lv_obj_set_size(line1, 400, 1);
-    lv_obj_set_pos(line1, 10, 165);
+    lv_obj_set_size(line1, content_width - 30, 1);
+    lv_obj_set_pos(line1, 15, 10 + line_y_step * 5);
     lv_obj_set_style_border_width(line1, 0, 0);
     lv_obj_set_style_bg_color(line1, lv_color_hex(0x34495e), 0);
     
@@ -552,31 +575,35 @@ static void setup_device_info_screen(void)
     lv_label_set_text(status_title, "Connection Status:");
     lv_obj_set_style_text_font(status_title, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(status_title, lv_color_hex(0x888888), 0);
-    lv_obj_set_pos(status_title, 10, 180);
+    lv_obj_set_pos(status_title, label_x, 30 + line_y_step * 5);
+    lv_obj_set_size(status_title, 150, 20);
     
     lv_obj_t *status_value = lv_label_create(info_card);
     lv_label_set_text(status_value, "● Connected");
     lv_obj_set_style_text_font(status_value, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(status_value, lv_color_hex(0x2ecc71), 0);
-    lv_obj_set_pos(status_value, 200, 180);
+    lv_obj_set_pos(status_value, value_x + 80, 30 + line_y_step * 5);
+    lv_obj_set_size(status_value, 120, 20);
     
     /* 波特率 */
     lv_obj_t *baud_label = lv_label_create(info_card);
     lv_label_set_text(baud_label, "Baud Rate:");
     lv_obj_set_style_text_font(baud_label, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(baud_label, lv_color_hex(0x888888), 0);
-    lv_obj_set_pos(baud_label, 10, 210);
+    lv_obj_set_pos(baud_label, label_x, 30 + line_y_step * 6);
+    lv_obj_set_size(baud_label, 100, 20);
     
     lv_obj_t *baud_value = lv_label_create(info_card);
     lv_label_set_text(baud_value, "115200 bps");
     lv_obj_set_style_text_font(baud_value, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(baud_value, lv_color_hex(0xffffff), 0);
-    lv_obj_set_pos(baud_value, 150, 210);
+    lv_obj_set_pos(baud_value, value_x, 30 + line_y_step * 6);
+    lv_obj_set_size(baud_value, 200, 20);
     
     /* 分隔线 */
     lv_obj_t *line2 = lv_obj_create(info_card);
-    lv_obj_set_size(line2, 400, 1);
-    lv_obj_set_pos(line2, 10, 240);
+    lv_obj_set_size(line2, content_width - 30, 1);
+    lv_obj_set_pos(line2, 15, 30 + line_y_step * 7);
     lv_obj_set_style_border_width(line2, 0, 0);
     lv_obj_set_style_bg_color(line2, lv_color_hex(0x34495e), 0);
     
@@ -585,14 +612,16 @@ static void setup_device_info_screen(void)
     lv_label_set_text(uptime_label, "Uptime:");
     lv_obj_set_style_text_font(uptime_label, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(uptime_label, lv_color_hex(0x888888), 0);
-    lv_obj_set_pos(uptime_label, 10, 255);
+    lv_obj_set_pos(uptime_label, label_x, 50 + line_y_step * 7);
+    lv_obj_set_size(uptime_label, 100, 20);
     
     /* 运行时间值 - 需要动态更新 */
     lv_obj_t *uptime_value = lv_label_create(info_card);
     lv_label_set_text(uptime_value, "00:00:00");
     lv_obj_set_style_text_font(uptime_value, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(uptime_value, lv_color_hex(0xffffff), 0);
-    lv_obj_set_pos(uptime_value, 150, 255);
+    lv_obj_set_pos(uptime_value, value_x, 50 + line_y_step * 7);
+    lv_obj_set_size(uptime_value, 100, 20);
     lv_obj_set_user_data(info_card, uptime_value);
     
     /* 底部提示 */
@@ -600,7 +629,9 @@ static void setup_device_info_screen(void)
     lv_label_set_text(footer, "System Ready");
     lv_obj_set_style_text_font(footer, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(footer, lv_color_hex(0x888888), 0);
-    lv_obj_align(footer, LV_ALIGN_BOTTOM_MID, 0, -10);
+    lv_obj_set_pos(footer, padding, 420);
+    lv_obj_set_size(footer, content_width, 20);
+    lv_obj_set_style_text_align(footer, LV_TEXT_ALIGN_CENTER, 0);
     
     /* 重置运行时间 */
     uptime_seconds = 0;
