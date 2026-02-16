@@ -186,7 +186,8 @@ static void audio_player_timer_cb(lv_timer_t *timer);
 static void audio_processor_timer_cb(lv_timer_t *timer);
 static void on_prev_click(lv_event_t *e);
 static void on_next_click(lv_event_t *e);
-static void device_info_timer_cb(lv_timer_t *timer);  // 新增：设备信息定时器
+static void device_info_timer_cb(lv_timer_t *timer);
+static void free_callback_data(lv_event_t *e);
 
 /**********************
  *      全局函数
@@ -318,6 +319,12 @@ static void create_main_screen(void)
         lv_obj_set_style_shadow_width(card, 8, 0);
         lv_obj_set_style_pad_all(card, 0, 0);
         lv_obj_add_event_cb(card, on_app_click, LV_EVENT_CLICKED, (void *)(intptr_t)cards[i].type);
+
+        /* 确保按钮接收事件 */
+        lv_obj_clear_flag(card, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
+        
+        lv_obj_add_event_cb(card, on_app_click, LV_EVENT_CLICKED, (void *)(intptr_t)cards[i].type);
         
         /* 图标 - 上移一点，让文字更靠近 */
         lv_obj_t *icon = lv_label_create(card);
@@ -340,6 +347,7 @@ static void create_main_screen(void)
  **********************/
 static void create_app_screen(app_type_t app_type)
 {
+    /* 防止重复切换 */
     if (screen_switch_in_progress) return;
     screen_switch_in_progress = 1;
     
@@ -350,11 +358,19 @@ static void create_app_screen(app_type_t app_type)
         app_ctx->app_timer = NULL;
     }
 
-    /* 删除旧的屏幕对象 */
+    /* 删除旧的屏幕对象 - 这会自动释放所有子对象 */
     if (app_ctx->screen.screen) {
         lv_obj_del_async(app_ctx->screen.screen);
         app_ctx->screen.screen = NULL;
     }
+
+        /* 重置相关指针，防止悬垂指针 */
+    app_ctx->screen.list = NULL;
+    app_ctx->play_btn = NULL;
+    app_ctx->progress_bar = NULL;
+    app_ctx->time_label = NULL;
+    app_ctx->now_playing_label = NULL;
+    app_ctx->chain_label = NULL;
     
     app_ctx->current_app = app_type;
     app_ctx->screen.screen = lv_obj_create(NULL);
@@ -452,7 +468,7 @@ static void setup_header(lv_obj_t *screen, const char *title)
 }
 
 /**********************
- *      设备信息页面
+ *      设备信息页面 - 移除定时器
  **********************/
 static void setup_device_info_screen(void)
 {
@@ -461,13 +477,13 @@ static void setup_device_info_screen(void)
     /* 清空容器 */
     lv_obj_clean(cont);
     
-    /* 计内容宽度 */
-    lv_coord_t content_width = 410;
-    lv_coord_t padding = 10;
+    /* 统一使用440宽度 */
+    const lv_coord_t content_width = 440;
+    const lv_coord_t padding = 10;
     
     lv_coord_t current_y = 20;
     
-    /* 标题图标 - 使用完整宽度 */
+    /* 标题图标 */
     lv_obj_t *icon_title = lv_label_create(cont);
     lv_label_set_text(icon_title, LV_SYMBOL_SETTINGS " System Information");
     lv_obj_set_style_text_font(icon_title, &lv_font_montserrat_18, 0);
@@ -476,9 +492,9 @@ static void setup_device_info_screen(void)
     lv_obj_set_size(icon_title, content_width, 30);
     current_y += 40;
     
-    /* 设备信息卡片 - 使用完整宽度 */
+    /* 设备信息卡片 */
     lv_obj_t *info_card = lv_obj_create(cont);
-    lv_obj_set_size(info_card, content_width, 320);
+    lv_obj_set_size(info_card, content_width, 290);  // 减少高度，因为移除了运行时间
     lv_obj_set_pos(info_card, padding, current_y);
     lv_obj_set_style_border_width(info_card, 1, 0);
     lv_obj_set_style_border_color(info_card, lv_color_hex(0x34495e), 0);
@@ -486,7 +502,7 @@ static void setup_device_info_screen(void)
     lv_obj_set_style_radius(info_card, 8, 0);
     lv_obj_set_style_pad_all(info_card, 15, 0);
     
-    /* 计算卡片内的布局 - 左列标签宽度100px，右列值宽度300px */
+    /* 计算卡片内的布局 */
     lv_coord_t label_x = 10;
     lv_coord_t value_x = 120;
     lv_coord_t line_y_step = 35;
@@ -582,7 +598,7 @@ static void setup_device_info_screen(void)
     lv_obj_set_size(status_title, 150, 20);
     
     lv_obj_t *status_value = lv_label_create(info_card);
-    lv_label_set_text(status_value, "● Connected");
+    lv_label_set_text(status_value, "Connected");
     lv_obj_set_style_text_font(status_value, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(status_value, lv_color_hex(0x2ecc71), 0);
     lv_obj_set_pos(status_value, value_x + 80, 30 + line_y_step * 5);
@@ -603,62 +619,17 @@ static void setup_device_info_screen(void)
     lv_obj_set_pos(baud_value, value_x, 30 + line_y_step * 6);
     lv_obj_set_size(baud_value, 200, 20);
     
-    /* 分隔线 */
-    lv_obj_t *line2 = lv_obj_create(info_card);
-    lv_obj_set_size(line2, content_width - 30, 1);
-    lv_obj_set_pos(line2, 15, 30 + line_y_step * 7);
-    lv_obj_set_style_border_width(line2, 0, 0);
-    lv_obj_set_style_bg_color(line2, lv_color_hex(0x34495e), 0);
-    
-    /* 运行时间标签 */
-    lv_obj_t *uptime_label = lv_label_create(info_card);
-    lv_label_set_text(uptime_label, "Uptime:");
-    lv_obj_set_style_text_font(uptime_label, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(uptime_label, lv_color_hex(0x888888), 0);
-    lv_obj_set_pos(uptime_label, label_x, 50 + line_y_step * 7);
-    lv_obj_set_size(uptime_label, 100, 20);
-    
-    /* 运行时间值 - 需要动态更新 */
-    lv_obj_t *uptime_value = lv_label_create(info_card);
-    lv_label_set_text(uptime_value, "00:00:00");
-    lv_obj_set_style_text_font(uptime_value, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(uptime_value, lv_color_hex(0xffffff), 0);
-    lv_obj_set_pos(uptime_value, value_x, 50 + line_y_step * 7);
-    lv_obj_set_size(uptime_value, 100, 20);
-    lv_obj_set_user_data(info_card, uptime_value);
-    
-    /* 底部提示 */
+    /* 底部提示 - 移除了运行时间，直接显示系统信息 */
     lv_obj_t *footer = lv_label_create(cont);
-    lv_label_set_text(footer, "System Ready");
+    lv_label_set_text(footer, "STM32H743VIT6 • System Ready");
     lv_obj_set_style_text_font(footer, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(footer, lv_color_hex(0x888888), 0);
-    lv_obj_set_pos(footer, padding, 420);
+    lv_obj_set_pos(footer, padding, 400);
     lv_obj_set_size(footer, content_width, 20);
     lv_obj_set_style_text_align(footer, LV_TEXT_ALIGN_CENTER, 0);
     
-    /* 重置运行时间 */
-    uptime_seconds = 0;
-    
-    /* 启动定时器更新运行时间 */
-    app_ctx->timer_running = 1;
-    app_ctx->app_timer = lv_timer_create(device_info_timer_cb, 1000, uptime_value);
-}
-
-/* 设备信息定时器回调 */
-static void device_info_timer_cb(lv_timer_t *timer)
-{
-    lv_obj_t *uptime_label = (lv_obj_t *)timer->user_data;
-    if (!uptime_label || !lv_obj_is_valid(uptime_label)) return;
-    
-    uptime_seconds++;
-    
-    int hours = uptime_seconds / 3600;
-    int minutes = (uptime_seconds % 3600) / 60;
-    int seconds = uptime_seconds % 60;
-    
-    char time_str[16];
-    sprintf(time_str, "%02d:%02d:%02d", hours, minutes, seconds);
-    lv_label_set_text(uptime_label, time_str);
+    /* 不再启动定时器 */
+    /* 移除 uptime_seconds 相关代码 */
 }
 
 /**********************
@@ -1069,6 +1040,7 @@ static void setup_effect_config_screen(int effect_index)
         switch_data->effect_index = effect_index;
         switch_data->effect = effect;
         lv_obj_add_event_cb(enable_switch, on_effect_enable_switch, LV_EVENT_VALUE_CHANGED, switch_data);
+        lv_obj_add_event_cb(enable_switch, free_callback_data, LV_EVENT_DELETE, switch_data); /* 防止内存泄漏 */
     }
     
     if (!config) return;
@@ -1107,6 +1079,7 @@ static void setup_effect_config_screen(int effect_index)
             slider_data->param_index = i;
             slider_data->value_label = value;
             lv_obj_add_event_cb(slider, on_config_slider_change, LV_EVENT_VALUE_CHANGED, slider_data);
+            lv_obj_add_event_cb(slider, free_callback_data, LV_EVENT_DELETE, slider_data);/* 防止内存泄漏 */
         }
     }
 }
@@ -1363,13 +1336,16 @@ static void on_play_click(lv_event_t *e)
     if (label) lv_label_set_text(label, app_ctx->is_playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);
 }
 
+/**********************
+ *      停止按钮点击事件 - 修复时间显示
+ **********************/
 static void on_stop_click(lv_event_t *e)
 {
     app_ctx->is_playing = 0;
     app_ctx->current_track = -1;
     
     lv_bar_set_value(app_ctx->progress_bar, 0, LV_ANIM_OFF);
-    lv_label_set_text(app_ctx->time_label, "00:00/03:00");
+    lv_label_set_text(app_ctx->time_label, "00:00");  // 改为"00:00"，而不是"00:00/03:00"
     lv_label_set_text(app_ctx->now_playing_label, "Not playing");
     
     lv_obj_t *label = lv_obj_get_child(app_ctx->play_btn, 0);
@@ -1425,7 +1401,7 @@ static void on_effect_enable_switch(lv_event_t *e)
 }
 
 /**********************
- *      更新效果链显示
+ *      更新效果链显示 - 优化字符串操作
  **********************/
 static void update_effect_chain_display(void)
 {
@@ -1433,15 +1409,21 @@ static void update_effect_chain_display(void)
         return;
     }
     
-    char chain_text[128] = "";
+    /* 预分配足够大的缓冲区 */
+    static char chain_text[128];
+    chain_text[0] = '\0';
     int enabled_count = 0;
+    int pos = 0;
     
     for (int i = 0; i < 5; i++) {
         if (app_ctx->effects[i].enabled) {
             if (enabled_count > 0) {
-                strcat(chain_text, "  →  ");
+                strcpy(&chain_text[pos], " → ");
+                pos += 3;
             }
-            strcat(chain_text, app_ctx->effects[i].name);
+            int len = strlen(app_ctx->effects[i].name);
+            strcpy(&chain_text[pos], app_ctx->effects[i].name);
+            pos += len;
             enabled_count++;
         }
     }
@@ -1473,7 +1455,7 @@ static void show_notification(const char *msg, lv_color_t color)
 }
 
 /**********************
- *      更新播放器定时器
+ *      更新播放器定时器 - 修复时间显示
  **********************/
 static void audio_player_timer_cb(lv_timer_t *timer)
 {
@@ -1487,10 +1469,28 @@ static void audio_player_timer_cb(lv_timer_t *timer)
     int total = 180;
     int current = (progress * total) / 100;
     
-    /* 更新当前时间显示 */
+    /* 格式化时间显示 mm:ss */
     char time_str[16];
     sprintf(time_str, "%02d:%02d", current / 60, current % 60);
     lv_label_set_text(ctx->time_label, time_str);
+    
+    /* 当播放完成时自动停止 */
+    if (progress == 100) {
+        ctx->is_playing = 0;
+        lv_obj_t *play_label = lv_obj_get_child(ctx->play_btn, 0);
+        if (play_label) lv_label_set_text(play_label, LV_SYMBOL_PLAY);
+    }
+}
+
+/**********************
+ *      添加回调数据释放函数
+ **********************/
+static void free_callback_data(lv_event_t *e)
+{
+    void *data = lv_event_get_user_data(e);
+    if (data) {
+        free(data);
+    }
 }
 
 /**********************
@@ -1498,6 +1498,8 @@ static void audio_player_timer_cb(lv_timer_t *timer)
  **********************/
 static void audio_processor_timer_cb(lv_timer_t *timer)
 {
+    /* 目前不需要任何定时更新，可以禁用 */
+    /* 如果需要未来添加功能，再启用 */
     (void)timer;
     /* 可以在这里添加需要定期更新的逻辑 */
 }
