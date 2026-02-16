@@ -982,7 +982,7 @@ static void setup_audio_processor_screen(void)
     
     /* 效果链显示区域 - 放在最下方，确保不重叠 */
     lv_obj_t *chain_bg = lv_obj_create(cont);
-    lv_obj_set_size(chain_bg, 440, 70);
+    lv_obj_set_size(chain_bg, 410, 70);
     lv_obj_set_pos(chain_bg, 10, 270);
     lv_obj_set_style_border_width(chain_bg, 1, 0);
     lv_obj_set_style_border_color(chain_bg, lv_color_hex(0x34495e), 0);
