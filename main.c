@@ -462,78 +462,179 @@ static void setup_file_manager_screen(void)
 }
 
 /**
- * @brief 设置音频播放器界面
+ * @brief 设置音频播放器界面 - 优化版本
+ * 屏幕分辨率：460x460
+ * 布局优化：播放列表、当前播放信息、控制按钮合理分布
  */
 static void setup_audio_player_screen(void)
 {
+    /* 获取屏幕实际尺寸 */
+    lv_coord_t screen_h = lv_obj_get_height(lv_scr_act());
+    lv_coord_t screen_w = lv_obj_get_width(lv_scr_act());
+    
+    /* 计算各区域高度 */
+    lv_coord_t header_height = HEADER_HEIGHT;
+    lv_coord_t content_height = screen_h - header_height - 20;
+    lv_coord_t playlist_height = content_height * 0.4;  // 播放列表占40%
+    lv_coord_t now_playing_height = 40;                 // 当前播放信息高度
+    lv_coord_t progress_height = 40;                    // 进度条区域高度
+    lv_coord_t control_height = 80;                     // 控制按钮区域高度
+    
+    /* 主容器设置为垂直布局 */
     lv_obj_set_flex_flow(app_ctx->screen.main_cont, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_all(app_ctx->screen.main_cont, 10, 0);
+    lv_obj_set_style_pad_row(app_ctx->screen.main_cont, 8, 0);
+    lv_obj_set_style_bg_opa(app_ctx->screen.main_cont, LV_OPA_TRANSP, 0);
 
-    /* 播放列表标签 */
-    CREATE_LABEL(app_ctx->screen.main_cont, "Playlist:", 
-                 &lv_font_montserrat_14, LV_ALIGN_TOP_LEFT, 0, 0);
+    /* ==================== 播放列表区域 ==================== */
+    /* 播放列表标题和统计 */
+    lv_obj_t *playlist_header = lv_obj_create(app_ctx->screen.main_cont);
+    lv_obj_set_size(playlist_header, LV_PCT(100), 30);
+    lv_obj_set_style_border_width(playlist_header, 0, 0);
+    lv_obj_set_style_bg_opa(playlist_header, LV_OPA_10, 0);
+    lv_obj_set_style_radius(playlist_header, 8, 0);
+    lv_obj_set_style_pad_all(playlist_header, 5, 0);
+
+    lv_obj_t *playlist_title = lv_label_create(playlist_header);
+    lv_label_set_text(playlist_title, LV_SYMBOL_AUDIO " Playlist");
+    lv_obj_set_style_text_font(playlist_title, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(playlist_title, lv_palette_main(LV_PALETTE_BLUE), 0);
+    lv_obj_align(playlist_title, LV_ALIGN_LEFT_MID, 5, 0);
 
     /* 播放列表 */
     app_ctx->screen.list = lv_list_create(app_ctx->screen.main_cont);
-    lv_obj_set_size(app_ctx->screen.list, LV_PCT(100), 180);
+    lv_obj_set_size(app_ctx->screen.list, LV_PCT(100), playlist_height);
     lv_obj_set_style_border_width(app_ctx->screen.list, 1, 0);
-    lv_obj_set_style_border_color(app_ctx->screen.list, 
-                                  lv_palette_main(LV_PALETTE_GREY), 0);
+    lv_obj_set_style_border_color(app_ctx->screen.list, lv_palette_main(LV_PALETTE_GREY), 0);
+    lv_obj_set_style_radius(app_ctx->screen.list, 8, 0);
+    lv_obj_set_style_bg_opa(app_ctx->screen.list, LV_OPA_10, 0);
+    lv_obj_set_style_pad_all(app_ctx->screen.list, 5, 0);
 
-    /* 当前播放信息 */
-    app_ctx->now_playing_label = CREATE_LABEL(app_ctx->screen.main_cont, "Not playing",
-                                              &lv_font_montserrat_14, LV_ALIGN_TOP_MID, 0, 0);
-    lv_obj_set_width(app_ctx->now_playing_label, LV_PCT(100));
-    lv_obj_set_style_text_align(app_ctx->now_playing_label, LV_TEXT_ALIGN_CENTER, 0);
+    /* ==================== 当前播放信息区域 ==================== */
+    lv_obj_t *now_playing_cont = lv_obj_create(app_ctx->screen.main_cont);
+    lv_obj_set_size(now_playing_cont, LV_PCT(100), now_playing_height);
+    lv_obj_set_style_border_width(now_playing_cont, 1, 0);
+    lv_obj_set_style_border_color(now_playing_cont, lv_palette_main(LV_PALETTE_GREY), 0);
+    lv_obj_set_style_radius(now_playing_cont, 8, 0);
+    lv_obj_set_style_bg_opa(now_playing_cont, LV_OPA_20, 0);
+    lv_obj_set_style_pad_all(now_playing_cont, 5, 0);
 
-    /* 控制区容器 */
-    lv_obj_t *ctrl_cont = lv_obj_create(app_ctx->screen.main_cont);
-    lv_obj_set_size(ctrl_cont, LV_PCT(100), 120);
-    lv_obj_set_flex_flow(ctrl_cont, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(ctrl_cont, LV_FLEX_ALIGN_CENTER, 
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_border_width(ctrl_cont, 0, 0);
-    lv_obj_set_style_bg_opa(ctrl_cont, LV_OPA_TRANSP, 0);
+    /* 现在播放图标 */
+    lv_obj_t *playing_icon = lv_label_create(now_playing_cont);
+    lv_label_set_text(playing_icon, LV_SYMBOL_PLAY);
+    lv_obj_set_style_text_font(playing_icon, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(playing_icon, lv_palette_main(LV_PALETTE_GREEN), 0);
+    lv_obj_align(playing_icon, LV_ALIGN_LEFT_MID, 5, 0);
 
-    /* 进度条区域 */
-    lv_obj_t *progress_cont = lv_obj_create(ctrl_cont);
-    lv_obj_set_size(progress_cont, LV_PCT(100), 40);
-    lv_obj_set_flex_flow(progress_cont, LV_FLEX_FLOW_ROW);
+    /* 当前播放歌曲名 */
+    app_ctx->now_playing_label = lv_label_create(now_playing_cont);
+    lv_label_set_text(app_ctx->now_playing_label, "Not playing");
+    lv_obj_set_style_text_font(app_ctx->now_playing_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(app_ctx->now_playing_label, lv_palette_main(LV_PALETTE_ORANGE), 0);
+    lv_obj_set_width(app_ctx->now_playing_label, LV_PCT(80));
+    lv_obj_align(app_ctx->now_playing_label, LV_ALIGN_LEFT_MID, 30, 0);
+
+    /* ==================== 进度条区域 ==================== */
+    lv_obj_t *progress_cont = lv_obj_create(app_ctx->screen.main_cont);
+    lv_obj_set_size(progress_cont, LV_PCT(100), progress_height);
     lv_obj_set_style_border_width(progress_cont, 0, 0);
     lv_obj_set_style_bg_opa(progress_cont, LV_OPA_TRANSP, 0);
-
-    app_ctx->progress_bar = lv_bar_create(progress_cont);
-    lv_obj_set_size(app_ctx->progress_bar, LV_PCT(80), 10);
-    lv_bar_set_range(app_ctx->progress_bar, 0, 100);
-    
-    app_ctx->time_label = CREATE_LABEL(progress_cont, "00:00/00:00",
-                                       &lv_font_montserrat_12, LV_ALIGN_TOP_LEFT, 0, 0);
-    lv_obj_set_width(app_ctx->time_label, LV_PCT(18));
-
-    /* 按钮区域 */
-    lv_obj_t *btn_cont = lv_obj_create(ctrl_cont);
-    lv_obj_set_size(btn_cont, LV_PCT(100), 60);
-    lv_obj_set_flex_flow(btn_cont, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(btn_cont, LV_FLEX_ALIGN_CENTER, 
+    lv_obj_set_flex_flow(progress_cont, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(progress_cont, LV_FLEX_ALIGN_CENTER, 
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_border_width(btn_cont, 0, 0);
-    lv_obj_set_style_bg_opa(btn_cont, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_pad_all(progress_cont, 5, 0);
 
-    /* 播放/暂停按钮 */
-    app_ctx->play_btn = CREATE_BTN(btn_cont, 80, 50, on_play_click, NULL);
+    /* 进度条 */
+    app_ctx->progress_bar = lv_bar_create(progress_cont);
+    lv_obj_set_size(app_ctx->progress_bar, LV_PCT(70), 8);
+    lv_bar_set_range(app_ctx->progress_bar, 0, 100);
+    lv_obj_set_style_radius(app_ctx->progress_bar, 5, 0);
+    lv_obj_set_style_bg_color(app_ctx->progress_bar, lv_palette_main(LV_PALETTE_GREY), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(app_ctx->progress_bar, lv_palette_main(LV_PALETTE_BLUE), LV_PART_INDICATOR);
+    
+    /* 时间显示 */
+    app_ctx->time_label = lv_label_create(progress_cont);
+    lv_label_set_text(app_ctx->time_label, "00:00/03:00");
+    lv_obj_set_style_text_font(app_ctx->time_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(app_ctx->time_label, lv_palette_main(LV_PALETTE_GREY), 0);
+    lv_obj_set_width(app_ctx->time_label, LV_PCT(25));
+
+    /* ==================== 控制按钮区域 ==================== */
+    lv_obj_t *control_cont = lv_obj_create(app_ctx->screen.main_cont);
+    lv_obj_set_size(control_cont, LV_PCT(100), control_height);
+    lv_obj_set_style_border_width(control_cont, 1, 0);
+    lv_obj_set_style_border_color(control_cont, lv_palette_main(LV_PALETTE_GREY), 0);
+    lv_obj_set_style_radius(control_cont, 8, 0);
+    lv_obj_set_style_bg_opa(control_cont, LV_OPA_10, 0);
+    lv_obj_set_flex_flow(control_cont, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(control_cont, LV_FLEX_ALIGN_SPACE_EVENLY, 
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_all(control_cont, 5, 0);
+
+    /* 上一首按钮 */
+    lv_obj_t *prev_btn = lv_btn_create(control_cont);
+    lv_obj_set_size(prev_btn, 70, 60);
+    lv_obj_set_style_radius(prev_btn, 8, 0);
+    lv_obj_set_style_bg_color(prev_btn, lv_palette_main(LV_PALETTE_GREY), 0);
+    lv_obj_set_style_bg_opa(prev_btn, LV_OPA_30, 0);
+    lv_obj_add_event_cb(prev_btn, NULL, LV_EVENT_CLICKED, NULL); // TODO: 添加上一首功能
+    
+    lv_obj_t *prev_label = lv_label_create(prev_btn);
+    lv_label_set_text(prev_label, LV_SYMBOL_PREV);
+    lv_obj_set_style_text_font(prev_label, &lv_font_montserrat_20, 0);
+    lv_obj_center(prev_label);
+
+    /* 播放/暂停按钮 - 主按钮，更大一些 */
+    app_ctx->play_btn = lv_btn_create(control_cont);
+    lv_obj_set_size(app_ctx->play_btn, 80, 70);
+    lv_obj_set_style_radius(app_ctx->play_btn, 10, 0);
+    lv_obj_set_style_bg_color(app_ctx->play_btn, lv_palette_main(LV_PALETTE_BLUE), 0);
+    lv_obj_set_style_bg_opa(app_ctx->play_btn, LV_OPA_80, 0);
+    lv_obj_add_event_cb(app_ctx->play_btn, on_play_click, LV_EVENT_CLICKED, NULL);
+    
     lv_obj_t *play_label = lv_label_create(app_ctx->play_btn);
     lv_label_set_text(play_label, LV_SYMBOL_PLAY);
+    lv_obj_set_style_text_font(play_label, &lv_font_montserrat_24, 0);
     lv_obj_center(play_label);
 
     /* 停止按钮 */
-    lv_obj_t *stop_btn = CREATE_BTN(btn_cont, 80, 50, on_stop_click, NULL);
+    lv_obj_t *stop_btn = lv_btn_create(control_cont);
+    lv_obj_set_size(stop_btn, 70, 60);
+    lv_obj_set_style_radius(stop_btn, 8, 0);
+    lv_obj_set_style_bg_color(stop_btn, lv_palette_main(LV_PALETTE_RED), 0);
+    lv_obj_set_style_bg_opa(stop_btn, LV_OPA_30, 0);
+    lv_obj_add_event_cb(stop_btn, on_stop_click, LV_EVENT_CLICKED, NULL);
+    
     lv_obj_t *stop_label = lv_label_create(stop_btn);
     lv_label_set_text(stop_label, LV_SYMBOL_STOP);
+    lv_obj_set_style_text_font(stop_label, &lv_font_montserrat_20, 0);
     lv_obj_center(stop_label);
+
+    /* 下一首按钮 */
+    lv_obj_t *next_btn = lv_btn_create(control_cont);
+    lv_obj_set_size(next_btn, 70, 60);
+    lv_obj_set_style_radius(next_btn, 8, 0);
+    lv_obj_set_style_bg_color(next_btn, lv_palette_main(LV_PALETTE_GREY), 0);
+    lv_obj_set_style_bg_opa(next_btn, LV_OPA_30, 0);
+    lv_obj_add_event_cb(next_btn, NULL, LV_EVENT_CLICKED, NULL); // TODO: 添加下一首功能
+    
+    lv_obj_t *next_label = lv_label_create(next_btn);
+    lv_label_set_text(next_label, LV_SYMBOL_NEXT);
+    lv_obj_set_style_text_font(next_label, &lv_font_montserrat_20, 0);
+    lv_obj_center(next_label);
+
+    /* 底部装饰信息 */
+    lv_obj_t *footer_label = lv_label_create(app_ctx->screen.main_cont);
+    lv_label_set_text(footer_label, LV_SYMBOL_VOLUME_MAX " Volume Control");
+    lv_obj_set_style_text_font(footer_label, &lv_font_montserrat_10, 0);
+    lv_obj_set_style_text_color(footer_label, lv_palette_main(LV_PALETTE_GREY), 0);
+    lv_obj_align(footer_label, LV_ALIGN_BOTTOM_MID, 0, -5);
 
     /* 启动定时器 */
     app_ctx->timer_running = 1;
     app_ctx->app_timer = lv_timer_create(audio_player_timer_cb, 100, app_ctx);
     
+    /* 加载音频文件 */
     load_audio_files("./", app_ctx->screen.list);
 }
 
@@ -961,6 +1062,9 @@ static void file_manager_timer_cb(lv_timer_t *timer)
     (void)timer;
 }
 
+/**
+ * @brief 定时器回调函数 - 更新进度条和时间显示
+ */
 static void audio_player_timer_cb(lv_timer_t *timer)
 {
     app_context_t *ctx = (app_context_t *)timer->user_data;
@@ -971,10 +1075,11 @@ static void audio_player_timer_cb(lv_timer_t *timer)
     progress = (progress + 1) % 101;
     lv_bar_set_value(ctx->progress_bar, progress, LV_ANIM_ON);
 
-    int total = 180;
+    int total = 180; // 假设歌曲总时长为3分钟
     int current = (progress * total) / 100;
-    lv_label_set_text_fmt(ctx->time_label, "%02d:%02d/03:00", 
-                          current / 60, current % 60);
+    lv_label_set_text_fmt(ctx->time_label, "%02d:%02d/%02d:%02d", 
+                          current / 60, current % 60,
+                          total / 60, total % 60);
 }
 
 static void audio_processor_timer_cb(lv_timer_t *timer)
@@ -1043,7 +1148,7 @@ static void load_directory(const char *path, lv_obj_t *list)
 }
 
 /**
- * @brief 加载音频文件（播放器专用）
+ * @brief 加载音频文件（播放器专用）- 只修改歌曲名字颜色
  */
 static void load_audio_files(const char *path, lv_obj_t *list)
 {
@@ -1076,9 +1181,53 @@ static void load_audio_files(const char *path, lv_obj_t *list)
                 strcpy(file->path, full_path);
                 file->size = st.st_size;
 
-                lv_obj_t *btn = lv_list_add_btn(list, LV_SYMBOL_AUDIO, entry->d_name);
+                /* 创建自定义列表项 */
+                lv_obj_t *btn = lv_btn_create(list);
+                lv_obj_set_size(btn, LV_PCT(100), 45);
+                lv_obj_set_style_border_width(btn, 0, 0);
+                lv_obj_set_style_radius(btn, 5, 0);
+                lv_obj_set_style_bg_color(btn, lv_palette_darken(LV_PALETTE_GREY, 3), 0);
+                lv_obj_set_style_bg_opa(btn, LV_OPA_40, 0);
+                lv_obj_set_style_pad_all(btn, 5, 0);
                 lv_obj_add_event_cb(btn, on_audio_file_click, LV_EVENT_CLICKED, 
                                    (void *)(intptr_t)app_ctx->file_count);
+
+                /* 图标 */
+                lv_obj_t *icon = lv_label_create(btn);
+                lv_label_set_text(icon, LV_SYMBOL_AUDIO);
+                lv_obj_set_style_text_font(icon, &lv_font_montserrat_14, 0);
+                lv_obj_set_style_text_color(icon, lv_palette_main(LV_PALETTE_BLUE), 0);
+                lv_obj_align(icon, LV_ALIGN_LEFT_MID, 10, 0);
+
+                /* 文件名 - 修改这里：将颜色改为白色 */
+                lv_obj_t *name_label = lv_label_create(btn);
+                char display_name[32];
+                if (strlen(entry->d_name) > 25) {
+                    strncpy(display_name, entry->d_name, 22);
+                    strcpy(display_name + 22, "...");
+                } else {
+                    strcpy(display_name, entry->d_name);
+                }
+                lv_label_set_text(name_label, display_name);
+                lv_obj_set_style_text_font(name_label, &lv_font_montserrat_12, 0);
+                /* 修改这行：将颜色改为白色 */
+                lv_obj_set_style_text_color(name_label, lv_color_white(), 0);
+                lv_obj_align(name_label, LV_ALIGN_LEFT_MID, 35, 0);
+
+                /* 文件大小 - 保持不变 */
+                lv_obj_t *size_label = lv_label_create(btn);
+                char size_str[16];
+                if (file->size < 1024) {
+                    sprintf(size_str, "%dB", file->size);
+                } else if (file->size < 1024 * 1024) {
+                    sprintf(size_str, "%.1fKB", file->size / 1024.0);
+                } else {
+                    sprintf(size_str, "%.1fMB", file->size / (1024.0 * 1024.0));
+                }
+                lv_label_set_text(size_label, size_str);
+                lv_obj_set_style_text_font(size_label, &lv_font_montserrat_10, 0);
+                lv_obj_set_style_text_color(size_label, lv_palette_main(LV_PALETTE_GREY), 0);
+                lv_obj_align(size_label, LV_ALIGN_RIGHT_MID, -10, 0);
                 
                 app_ctx->file_count++;
             }
@@ -1090,8 +1239,16 @@ static void load_audio_files(const char *path, lv_obj_t *list)
     if (app_ctx->file_count == 0) {
         lv_obj_t *label = lv_label_create(list);
         lv_label_set_text(label, "No audio files found");
+        lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(label, lv_color_white(), 0);
         lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_width(label, LV_PCT(100));
+        lv_obj_center(label);
+    } else {
+        /* 文件计数信息 */
+        char count_str[32];
+        sprintf(count_str, "%d files loaded", app_ctx->file_count);
+        show_notification(count_str, lv_palette_main(LV_PALETTE_GREEN));
     }
 }
 
@@ -1141,24 +1298,35 @@ static void on_file_click(lv_event_t *e)
     }
 }
 
+/**
+ * @brief 音频文件点击事件 - 更新显示
+ */
 static void on_audio_file_click(lv_event_t *e)
 {
     int file_index = (int)(intptr_t)lv_event_get_user_data(e);
+    if (file_index < 0 || file_index >= app_ctx->file_count) return;
+    
     file_info_t *file = &app_ctx->files[file_index];
 
+    /* 更新当前播放显示 */
     char now_playing[128];
-    snprintf(now_playing, sizeof(now_playing), "Playing: %s", file->name);
+    snprintf(now_playing, sizeof(now_playing), "%s", file->name);
     lv_label_set_text(app_ctx->now_playing_label, now_playing);
     
-    show_notification(now_playing, lv_palette_main(LV_PALETTE_GREEN));
+    /* 显示通知 */
+    show_notification("Playing: " LV_SYMBOL_PLAY, lv_palette_main(LV_PALETTE_GREEN));
 
+    /* 更新播放状态 */
     app_ctx->current_track = file_index;
     app_ctx->is_playing = 1;
 
+    /* 更新播放按钮图标 */
     lv_obj_t *play_label = lv_obj_get_child(app_ctx->play_btn, 0);
     lv_label_set_text(play_label, LV_SYMBOL_PAUSE);
     
+    /* 重置进度条 */
     lv_bar_set_value(app_ctx->progress_bar, 0, LV_ANIM_OFF);
+    lv_label_set_text(app_ctx->time_label, "00:00/03:00");
 }
 
 static void on_delete_confirm(lv_event_t *e)
@@ -1178,6 +1346,9 @@ static void on_delete_confirm(lv_event_t *e)
     lv_msgbox_close(mbox);
 }
 
+/**
+ * @brief 播放/暂停按钮点击事件
+ */
 static void on_play_click(lv_event_t *e)
 {
     if (app_ctx->current_track < 0 || app_ctx->current_track >= app_ctx->file_count) {
@@ -1191,22 +1362,33 @@ static void on_play_click(lv_event_t *e)
     lv_obj_t *label = lv_obj_get_child(btn, 0);
     lv_label_set_text(label, app_ctx->is_playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);
 
+    /* 更新播放图标颜色 */
+    if (app_ctx->is_playing) {
+        lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_GREEN), 0);
+    } else {
+        lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_BLUE), 0);
+    }
+
     show_notification(app_ctx->is_playing ? "Playing" : "Paused",
                      lv_palette_main(LV_PALETTE_BLUE));
 }
-
+/**
+ * @brief 停止按钮点击事件
+ */
 static void on_stop_click(lv_event_t *e)
 {
     (void)e;
     app_ctx->is_playing = 0;
-    app_ctx->current_track = -1;
-
+    
+    /* 重置播放状态 */
     lv_bar_set_value(app_ctx->progress_bar, 0, LV_ANIM_ON);
-    lv_label_set_text(app_ctx->time_label, "00:00/00:00");
+    lv_label_set_text(app_ctx->time_label, "00:00/03:00");
     lv_label_set_text(app_ctx->now_playing_label, "Not playing");
 
+    /* 更新播放按钮 */
     lv_obj_t *play_label = lv_obj_get_child(app_ctx->play_btn, 0);
     lv_label_set_text(play_label, LV_SYMBOL_PLAY);
+    lv_obj_set_style_bg_color(app_ctx->play_btn, lv_palette_main(LV_PALETTE_BLUE), 0);
 
     show_notification("Stopped", lv_palette_main(LV_PALETTE_BLUE));
 }
