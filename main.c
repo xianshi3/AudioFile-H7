@@ -689,140 +689,207 @@ static void setup_file_manager_screen(void)
     
     load_directory(app_ctx->current_path, app_ctx->screen.list);
 }
+
 /**********************
- *      音频播放器页面 - 全新设计
+ *      音频播放器页面
  **********************/
 static void setup_audio_player_screen(void)
 {
     lv_obj_t *cont = app_ctx->screen.main_cont;
     
-    /* 使用绝对定位，精确控制每个元素的位置 */
-    lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_all(cont, 0, 0);
+    /* 清空容器 */
+    lv_obj_clean(cont);
     
-    /* ==================== 顶部专辑封面区域 ==================== */
-    lv_obj_t *cover_cont = lv_obj_create(cont);
-    lv_obj_set_size(cover_cont, 440, 140);
-    lv_obj_set_style_border_width(cover_cont, 0, 0);
-    lv_obj_set_style_bg_color(cover_cont, lv_color_hex(0x2c3e50), 0);
-    lv_obj_set_style_radius(cover_cont, 12, 0);
-    lv_obj_set_style_pad_all(cover_cont, 0, 0);
+    /* ==================== 定义统一的尺寸常量 ==================== */
+    /* 基础尺寸 */
+    const lv_coord_t screen_width = 460;
+    const lv_coord_t screen_height = 460;
+    const lv_coord_t header_height = 50;  // 标题栏高度
+    const lv_coord_t padding = (screen_width - 425) / 2;
     
-    /* 播放状态大图标 */
-    lv_obj_t *cover_icon = lv_label_create(cover_cont);
-    lv_label_set_text(cover_icon, LV_SYMBOL_PLAY);
-    lv_obj_set_style_text_font(cover_icon, &lv_font_montserrat_48, 0);
-    lv_obj_set_style_text_color(cover_icon, lv_color_hex(0x3498db), 0);
-    lv_obj_center(cover_icon);
+    /* 内容区域 */
+    const lv_coord_t content_width = 400;  // 固定宽度400
+    const lv_coord_t start_x = padding;    // 起始X坐标
     
-    /* 当前播放歌曲名 - 放在封面下方 */
+    /* 按钮尺寸 */
+    const lv_coord_t btn_main_size = 75;    // 主按钮（播放/暂停）
+    const lv_coord_t btn_normal_size = 60;  // 普通按钮（上一首/下一首/停止）
+    
+    /* 区域高度 */
+    const lv_coord_t progress_area_height = 50;  // 进度条区域高度
+    const lv_coord_t control_area_height = 85;   // 控制按钮区域高度
+    
+    /* 字体大小 */
+    const lv_font_t *font_large = &lv_font_montserrat_22;   // 歌曲名
+    const lv_font_t *font_medium = &lv_font_montserrat_16;  // 艺术家
+    const lv_font_t *font_small = &lv_font_montserrat_14;   // 时间、标题
+    const lv_font_t *font_icon_large = &lv_font_montserrat_36;  // 主按钮图标
+    const lv_font_t *font_icon_normal = &lv_font_montserrat_28; // 普通按钮图标
+    
+    /* 间距 */
+    const lv_coord_t spacing_small = 10;
+    const lv_coord_t spacing_medium = 15;
+    const lv_coord_t spacing_large = 20;
+    
+    /* ==================== 计算Y坐标 ==================== */
+    lv_coord_t current_y = 10;  // 起始Y坐标
+    
+    /* 歌曲名 */
+    const lv_coord_t y_song = current_y;
+    current_y += 30 + spacing_small;
+    
+    /* 艺术家 */
+    const lv_coord_t y_artist = current_y;
+    current_y += 25 + spacing_medium;
+    
+    /* 进度条区域 */
+    const lv_coord_t y_progress = current_y;
+    current_y += progress_area_height + spacing_large;
+    
+    /* 控制按钮区域 */
+    const lv_coord_t y_controls = current_y;
+    current_y += control_area_height + spacing_large;
+    
+    /* 播放列表标题 */
+    const lv_coord_t y_list_title = current_y;
+    current_y += 25 + spacing_small;
+    
+    /* 播放列表 */
+    const lv_coord_t y_list = current_y;
+    const lv_coord_t list_height = screen_height - header_height - y_list - 10;
+    
+    /* 确保内容容器没有滚动条 */
+    lv_obj_set_scrollbar_mode(cont, LV_SCROLLBAR_MODE_OFF);
+    
+    /* ==================== 歌曲信息区域 ==================== */
+    /* 当前播放歌曲名 - 完全居中 */
     app_ctx->now_playing_label = lv_label_create(cont);
     lv_label_set_text(app_ctx->now_playing_label, "Not playing");
-    lv_obj_set_style_text_font(app_ctx->now_playing_label, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_font(app_ctx->now_playing_label, font_large, 0);
     lv_obj_set_style_text_color(app_ctx->now_playing_label, lv_color_hex(0xffffff), 0);
     lv_obj_set_style_text_align(app_ctx->now_playing_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(app_ctx->now_playing_label, 440);
-    lv_obj_set_pos(app_ctx->now_playing_label, 10, 155);
+    lv_obj_set_width(app_ctx->now_playing_label, content_width);
+    lv_obj_set_pos(app_ctx->now_playing_label, start_x, y_song);
+    /* 设置标签在垂直方向上也居中于给定区域 */
+    lv_obj_set_style_text_align(app_ctx->now_playing_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_long_mode(app_ctx->now_playing_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
     
-    /* 艺术家信息 */
+    /* 艺术家信息 - 也居中 */
     lv_obj_t *artist_label = lv_label_create(cont);
     lv_label_set_text(artist_label, "Unknown Artist");
-    lv_obj_set_style_text_font(artist_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(artist_label, font_medium, 0);
     lv_obj_set_style_text_color(artist_label, lv_color_hex(0x888888), 0);
     lv_obj_set_style_text_align(artist_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(artist_label, 440);
-    lv_obj_set_pos(artist_label, 10, 180);
+    lv_obj_set_width(artist_label, content_width);
+    lv_obj_set_pos(artist_label, start_x, y_artist);
+    
     
     /* ==================== 进度条区域 ==================== */
-    lv_obj_t *progress_cont = lv_obj_create(cont);
-    lv_obj_set_size(progress_cont, 440, 50);
-    lv_obj_set_pos(progress_cont, 10, 215);
-    lv_obj_set_style_border_width(progress_cont, 0, 0);
-    lv_obj_set_style_bg_opa(progress_cont, LV_OPA_TRANSP, 0);
-    
-    /* 当前时间 */
-    app_ctx->time_label = lv_label_create(progress_cont);
+    /* 当前时间 - 左对齐 */
+    app_ctx->time_label = lv_label_create(cont);
     lv_label_set_text(app_ctx->time_label, "00:00");
-    lv_obj_set_style_text_font(app_ctx->time_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(app_ctx->time_label, font_small, 0);
     lv_obj_set_style_text_color(app_ctx->time_label, lv_color_hex(0xffffff), 0);
-    lv_obj_align(app_ctx->time_label, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_set_pos(app_ctx->time_label, start_x, y_progress + 16);
     
-    /* 总时间 */
-    lv_obj_t *total_time = lv_label_create(progress_cont);
+    /* 总时间 - 右对齐 */
+    lv_obj_t *total_time = lv_label_create(cont);
     lv_label_set_text(total_time, "03:00");
-    lv_obj_set_style_text_font(total_time, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(total_time, font_small, 0);
     lv_obj_set_style_text_color(total_time, lv_color_hex(0x888888), 0);
-    lv_obj_align(total_time, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_set_pos(total_time, start_x + content_width - 45, y_progress + 16);
     
-    /* 进度条 - 放在中间 */
-    app_ctx->progress_bar = lv_bar_create(progress_cont);
-    lv_obj_set_size(app_ctx->progress_bar, 320, 4);
-    lv_obj_align(app_ctx->progress_bar, LV_ALIGN_CENTER, 0, 0);
+    /* 进度条 - 居中 */
+    app_ctx->progress_bar = lv_bar_create(cont);
+    lv_obj_set_size(app_ctx->progress_bar, content_width - 80, 6);
+    lv_obj_set_pos(app_ctx->progress_bar, start_x + 40, y_progress + 18);
     lv_bar_set_range(app_ctx->progress_bar, 0, 100);
-    lv_obj_set_style_radius(app_ctx->progress_bar, 2, 0);
+    lv_obj_set_style_radius(app_ctx->progress_bar, 3, 0);
     lv_obj_set_style_bg_color(app_ctx->progress_bar, lv_color_hex(0x34495e), LV_PART_MAIN);
     lv_obj_set_style_bg_color(app_ctx->progress_bar, lv_color_hex(0x3498db), LV_PART_INDICATOR);
+    lv_obj_set_scrollbar_mode(app_ctx->progress_bar, LV_SCROLLBAR_MODE_OFF);
     
     /* ==================== 控制按钮区域 ==================== */
-    lv_obj_t *control_cont = lv_obj_create(cont);
-    lv_obj_set_size(control_cont, 440, 80);
-    lv_obj_set_pos(control_cont, 10, 280);
-    lv_obj_set_style_border_width(control_cont, 0, 0);
-    lv_obj_set_style_bg_opa(control_cont, LV_OPA_TRANSP, 0);
-    lv_obj_set_flex_flow(control_cont, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(control_cont, LV_FLEX_ALIGN_SPACE_EVENLY, 
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    /* 计算按钮位置 - 均匀分布 */
+    const lv_coord_t total_btn_width = btn_normal_size * 3 + btn_main_size;
+    const lv_coord_t btn_spacing = (content_width - total_btn_width) / 5;
+    
+    /* 按钮垂直居中位置 */
+    const lv_coord_t btn_y_offset = y_controls + (control_area_height - btn_main_size) / 2;
     
     /* 上一首按钮 */
-    lv_obj_t *prev_btn = lv_btn_create(control_cont);
-    lv_obj_set_size(prev_btn, 60, 60);
-    lv_obj_set_style_radius(prev_btn, 30, 0);
+    lv_obj_t *prev_btn = lv_btn_create(cont);
+    lv_obj_set_size(prev_btn, btn_normal_size, btn_normal_size);
+    lv_obj_set_pos(prev_btn, start_x + btn_spacing, btn_y_offset + (btn_main_size - btn_normal_size) / 2);
+    lv_obj_set_style_radius(prev_btn, btn_normal_size / 2, 0);
     lv_obj_set_style_bg_color(prev_btn, lv_color_hex(0x34495e), 0);
+    lv_obj_set_scrollbar_mode(prev_btn, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_event_cb(prev_btn, on_prev_click, LV_EVENT_CLICKED, NULL);
     
     lv_obj_t *prev_label = lv_label_create(prev_btn);
     lv_label_set_text(prev_label, LV_SYMBOL_PREV);
-    lv_obj_set_style_text_font(prev_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(prev_label, font_icon_normal, 0);
     lv_obj_set_style_text_color(prev_label, lv_color_white(), 0);
     lv_obj_center(prev_label);
     
     /* 播放/暂停按钮 - 主按钮 */
-    app_ctx->play_btn = lv_btn_create(control_cont);
-    lv_obj_set_size(app_ctx->play_btn, 80, 80);
-    lv_obj_set_style_radius(app_ctx->play_btn, 40, 0);
+    app_ctx->play_btn = lv_btn_create(cont);
+    lv_obj_set_size(app_ctx->play_btn, btn_main_size, btn_main_size);
+    lv_obj_set_pos(app_ctx->play_btn, start_x + btn_spacing * 2 + btn_normal_size, btn_y_offset);
+    lv_obj_set_style_radius(app_ctx->play_btn, btn_main_size / 2, 0);
     lv_obj_set_style_bg_color(app_ctx->play_btn, lv_color_hex(0x3498db), 0);
+    lv_obj_set_scrollbar_mode(app_ctx->play_btn, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_event_cb(app_ctx->play_btn, on_play_click, LV_EVENT_CLICKED, NULL);
     
     lv_obj_t *play_label = lv_label_create(app_ctx->play_btn);
     lv_label_set_text(play_label, LV_SYMBOL_PLAY);
-    lv_obj_set_style_text_font(play_label, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_font(play_label, font_icon_large, 0);
     lv_obj_set_style_text_color(play_label, lv_color_white(), 0);
     lv_obj_center(play_label);
     
     /* 下一首按钮 */
-    lv_obj_t *next_btn = lv_btn_create(control_cont);
-    lv_obj_set_size(next_btn, 60, 60);
-    lv_obj_set_style_radius(next_btn, 30, 0);
+    lv_obj_t *next_btn = lv_btn_create(cont);
+    lv_obj_set_size(next_btn, btn_normal_size, btn_normal_size);
+    lv_obj_set_pos(next_btn, start_x + btn_spacing * 3 + btn_normal_size + btn_main_size, 
+                   btn_y_offset + (btn_main_size - btn_normal_size) / 2);
+    lv_obj_set_style_radius(next_btn, btn_normal_size / 2, 0);
     lv_obj_set_style_bg_color(next_btn, lv_color_hex(0x34495e), 0);
+    lv_obj_set_scrollbar_mode(next_btn, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_event_cb(next_btn, on_next_click, LV_EVENT_CLICKED, NULL);
     
     lv_obj_t *next_label = lv_label_create(next_btn);
     lv_label_set_text(next_label, LV_SYMBOL_NEXT);
-    lv_obj_set_style_text_font(next_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(next_label, font_icon_normal, 0);
     lv_obj_set_style_text_color(next_label, lv_color_white(), 0);
     lv_obj_center(next_label);
+    
+    /* 停止按钮 */
+    lv_obj_t *stop_btn = lv_btn_create(cont);
+    lv_obj_set_size(stop_btn, btn_normal_size, btn_normal_size);
+    lv_obj_set_pos(stop_btn, start_x + btn_spacing * 4 + btn_normal_size * 2 + btn_main_size, 
+                   btn_y_offset + (btn_main_size - btn_normal_size) / 2);
+    lv_obj_set_style_radius(stop_btn, btn_normal_size / 2, 0);
+    lv_obj_set_style_bg_color(stop_btn, lv_color_hex(0xe74c3c), 0);
+    lv_obj_set_scrollbar_mode(stop_btn, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_add_event_cb(stop_btn, on_stop_click, LV_EVENT_CLICKED, NULL);
+    
+    lv_obj_t *stop_label = lv_label_create(stop_btn);
+    lv_label_set_text(stop_label, LV_SYMBOL_STOP);
+    lv_obj_set_style_text_font(stop_label, font_icon_normal, 0);
+    lv_obj_set_style_text_color(stop_label, lv_color_white(), 0);
+    lv_obj_center(stop_label);
     
     /* ==================== 播放列表区域 ==================== */
     lv_obj_t *list_title = lv_label_create(cont);
     lv_label_set_text(list_title, "Playlist");
-    lv_obj_set_style_text_font(list_title, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(list_title, font_medium, 0);
     lv_obj_set_style_text_color(list_title, lv_color_hex(0x888888), 0);
-    lv_obj_set_pos(list_title, 10, 375);
+    lv_obj_set_pos(list_title, start_x, y_list_title);
     
-    /* 播放列表 - 紧凑设计 */
+    /* 播放列表 */
     app_ctx->screen.list = lv_list_create(cont);
-    lv_obj_set_size(app_ctx->screen.list, 440, 70);
-    lv_obj_set_pos(app_ctx->screen.list, 10, 400);
+    lv_obj_set_size(app_ctx->screen.list, content_width, list_height);
+    lv_obj_set_pos(app_ctx->screen.list, start_x, y_list);
     lv_obj_set_style_bg_color(app_ctx->screen.list, lv_color_hex(0x2c3e50), 0);
     lv_obj_set_style_border_color(app_ctx->screen.list, lv_color_hex(0x34495e), 0);
     lv_obj_set_style_radius(app_ctx->screen.list, 8, 0);
@@ -834,7 +901,6 @@ static void setup_audio_player_screen(void)
     
     load_audio_files("./", app_ctx->screen.list);
 }
-
 /**********************
  *      音频处理器页面 - 修复布局问题
  **********************/
@@ -1156,6 +1222,9 @@ static void load_directory(const char *path, lv_obj_t *list)
     closedir(dir);
 }
 
+/**********************
+ *      加载音频文件
+ **********************/
 static void load_audio_files(const char *path, lv_obj_t *list)
 {
     DIR *dir = opendir(path);
@@ -1187,12 +1256,24 @@ static void load_audio_files(const char *path, lv_obj_t *list)
         strcpy(file->path, full_path);
         file->size = st.st_size;
 
+        /* 使用原始方式添加列表项，不修改任何颜色 */
         lv_obj_t *btn = lv_list_add_btn(list, LV_SYMBOL_AUDIO, entry->d_name);
+        
         lv_obj_add_event_cb(btn, on_audio_file_click, LV_EVENT_CLICKED, (void *)(intptr_t)app_ctx->file_count);
         
         app_ctx->file_count++;
     }
     closedir(dir);
+    
+    /* 如果没有文件，显示提示信息 */
+    if (app_ctx->file_count == 0) {
+        lv_obj_t *empty_label = lv_label_create(list);
+        lv_label_set_text(empty_label, "No audio files found");
+        lv_obj_set_style_text_font(empty_label, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(empty_label, lv_color_hex(0x888888), 0);
+        lv_obj_set_width(empty_label, lv_obj_get_width(list));
+        lv_obj_center(empty_label);
+    }
 }
 
 /**********************
@@ -1410,7 +1491,7 @@ static void audio_player_timer_cb(lv_timer_t *timer)
     int total = 180;
     int current = (progress * total) / 100;
     
-    /* 只显示当前时间，总时间固定显示 */
+    /* 更新当前时间显示 */
     char time_str[16];
     sprintf(time_str, "%02d:%02d", current / 60, current % 60);
     lv_label_set_text(ctx->time_label, time_str);
