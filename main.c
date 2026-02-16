@@ -15,6 +15,7 @@
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <time.h>
 #include "lvgl/lvgl.h"
 #include "lvgl/examples/lv_examples.h"
 #include "lvgl/demos/lv_demos.h"
@@ -40,7 +41,8 @@ typedef enum {
     APP_FILE_MANAGER,
     APP_AUDIO_PLAYER,
     APP_AUDIO_PROCESSOR,
-    APP_EFFECT_CONFIG
+    APP_EFFECT_CONFIG,
+    APP_DEVICE_INFO
 } app_type_t;
 
 typedef enum {
@@ -151,6 +153,7 @@ static const effect_config_t effect_presets[] = {
  **********************/
 static app_context_t *app_ctx = NULL;
 static int screen_switch_in_progress = 0;
+static int uptime_seconds = 0;  // 用于设备信息页面的运行时间
 
 /**********************
  *      静态函数声明
@@ -163,6 +166,7 @@ static void setup_file_manager_screen(void);
 static void setup_audio_player_screen(void);
 static void setup_audio_processor_screen(void);
 static void setup_effect_config_screen(int effect_index);
+static void setup_device_info_screen(void);
 static void load_directory(const char *path, lv_obj_t *list);
 static void load_audio_files(const char *path, lv_obj_t *list);
 static void on_app_click(lv_event_t *e);
@@ -180,6 +184,7 @@ static void show_notification(const char *msg, lv_color_t color);
 static void update_effect_chain_display(void);
 static void audio_player_timer_cb(lv_timer_t *timer);
 static void audio_processor_timer_cb(lv_timer_t *timer);
+static void device_info_timer_cb(lv_timer_t *timer);  // 新增：设备信息定时器
 
 /**********************
  *      全局函数
@@ -286,7 +291,7 @@ static void create_main_screen(void)
     lv_obj_set_style_text_color(version, lv_color_hex(0x888888), 0);
     lv_obj_set_pos(version, SCREEN_WIDTH - padding - 50, 25);
     
-    /* 功能卡片 */
+    /* 功能卡片 - 使用LVGL 8.3支持的符号 */
     struct {
         const char *icon;
         const char *title;
@@ -296,7 +301,7 @@ static void create_main_screen(void)
         {LV_SYMBOL_DIRECTORY, "File Manager", lv_color_hex(0x3498db), APP_FILE_MANAGER},
         {LV_SYMBOL_PLAY, "Audio Player", lv_color_hex(0x2ecc71), APP_AUDIO_PLAYER},
         {LV_SYMBOL_SETTINGS, "Audio FX", lv_color_hex(0xe74c3c), APP_AUDIO_PROCESSOR},
-        {LV_SYMBOL_AUDIO, "Equalizer", lv_color_hex(0xf39c12), APP_AUDIO_PROCESSOR}
+        {LV_SYMBOL_BELL, "Device Info", lv_color_hex(0xf39c12), APP_DEVICE_INFO}  // 使用LV_SYMBOL_BELL代替
     };
     
     for (int i = 0; i < 4; i++) {
@@ -355,13 +360,14 @@ static void create_app_screen(app_type_t app_type)
         [APP_FILE_MANAGER] = "File Manager",
         [APP_AUDIO_PLAYER] = "Audio Player",
         [APP_AUDIO_PROCESSOR] = "Audio Processor",
-        [APP_EFFECT_CONFIG] = "Effect Configuration"
+        [APP_EFFECT_CONFIG] = "Effect Configuration",
+        [APP_DEVICE_INFO] = "Device Information"
     };
     
-    /* 设置标题栏 - 固定在顶部，无滚动条 */
+    /* 设置标题栏 */
     setup_header(app_ctx->screen.screen, titles[app_type]);
     
-    /* 主内容容器 - 位于标题栏下方，可以有滚动条 */
+    /* 主内容容器 */
     app_ctx->screen.main_cont = lv_obj_create(app_ctx->screen.screen);
     lv_obj_set_size(app_ctx->screen.main_cont, SCREEN_WIDTH, SCREEN_HEIGHT - HEADER_HEIGHT);
     lv_obj_set_pos(app_ctx->screen.main_cont, 0, HEADER_HEIGHT);
@@ -372,13 +378,12 @@ static void create_app_screen(app_type_t app_type)
     switch (app_type) {
         case APP_FILE_MANAGER:
         case APP_AUDIO_PLAYER:
-            /* 文件列表和播放列表需要滚动 */
             lv_obj_set_scrollbar_mode(app_ctx->screen.main_cont, LV_SCROLLBAR_MODE_AUTO);
             lv_obj_set_scroll_dir(app_ctx->screen.main_cont, LV_DIR_VER);
             break;
         case APP_AUDIO_PROCESSOR:
         case APP_EFFECT_CONFIG:
-            /* 效果器页面内容固定，不需要滚动 */
+        case APP_DEVICE_INFO:
             lv_obj_set_scrollbar_mode(app_ctx->screen.main_cont, LV_SCROLLBAR_MODE_OFF);
             break;
         default:
@@ -392,6 +397,7 @@ static void create_app_screen(app_type_t app_type)
         case APP_AUDIO_PLAYER: setup_audio_player_screen(); break;
         case APP_AUDIO_PROCESSOR: setup_audio_processor_screen(); break;
         case APP_EFFECT_CONFIG: setup_effect_config_screen(app_ctx->current_effect_index); break;
+        case APP_DEVICE_INFO: setup_device_info_screen(); break;
         default: break;
     }
     
@@ -400,7 +406,7 @@ static void create_app_screen(app_type_t app_type)
 }
 
 /**
- * @brief 创建通用标题栏 - 固定在顶部，无滚动条
+ * @brief 创建通用标题栏
  */
 static void setup_header(lv_obj_t *screen, const char *title)
 {
@@ -410,7 +416,7 @@ static void setup_header(lv_obj_t *screen, const char *title)
     lv_obj_set_style_border_width(header, 0, 0);
     lv_obj_set_style_bg_color(header, lv_color_hex(0x2c3e50), 0);
     lv_obj_set_style_pad_all(header, 0, 0);
-    lv_obj_set_scrollbar_mode(header, LV_SCROLLBAR_MODE_OFF);  /* 标题栏禁止滚动 */
+    lv_obj_set_scrollbar_mode(header, LV_SCROLLBAR_MODE_OFF);
 
     /* 返回按钮 */
     lv_obj_t *back_btn = lv_btn_create(header);
@@ -429,7 +435,7 @@ static void setup_header(lv_obj_t *screen, const char *title)
         app_ctx->current_app == APP_EFFECT_CONFIG ? on_effect_config_back : on_back_click, 
         LV_EVENT_CLICKED, NULL);
 
-    /* 标题 - 白色 */
+    /* 标题 */
     lv_obj_t *title_label = lv_label_create(header);
     lv_label_set_text(title_label, title);
     lv_obj_set_style_text_font(title_label, &lv_font_montserrat_16, 0);
@@ -441,13 +447,192 @@ static void setup_header(lv_obj_t *screen, const char *title)
 }
 
 /**********************
- *      页面构建 - 自适应布局
+ *      设备信息页面
+ **********************/
+static void setup_device_info_screen(void)
+{
+    lv_obj_t *cont = app_ctx->screen.main_cont;
+    
+    lv_coord_t current_y = 20;
+    
+    /* 标题图标 */
+    lv_obj_t *icon_title = lv_label_create(cont);
+    lv_label_set_text(icon_title, LV_SYMBOL_SETTINGS " System Information");
+    lv_obj_set_style_text_font(icon_title, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_color(icon_title, lv_color_hex(0x3498db), 0);
+    lv_obj_set_pos(icon_title, 20, current_y);
+    current_y += 40;
+    
+    /* 设备信息卡片 */
+    lv_obj_t *info_card = lv_obj_create(cont);
+    lv_obj_set_size(info_card, 440, 320);
+    lv_obj_set_pos(info_card, 10, current_y);
+    lv_obj_set_style_border_width(info_card, 1, 0);
+    lv_obj_set_style_border_color(info_card, lv_color_hex(0x34495e), 0);
+    lv_obj_set_style_bg_color(info_card, lv_color_hex(0x2c3e50), 0);
+    lv_obj_set_style_radius(info_card, 8, 0);
+    lv_obj_set_style_pad_all(info_card, 15, 0);
+    
+    /* 设备名称 */
+    lv_obj_t *device_label = lv_label_create(info_card);
+    lv_label_set_text(device_label, "Device:");
+    lv_obj_set_style_text_font(device_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(device_label, lv_color_hex(0x888888), 0);
+    lv_obj_set_pos(device_label, 10, 10);
+    
+    lv_obj_t *device_value = lv_label_create(info_card);
+    lv_label_set_text(device_value, "STM32H743VIT6");
+    lv_obj_set_style_text_font(device_value, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(device_value, lv_color_hex(0xffffff), 0);
+    lv_obj_set_pos(device_value, 150, 10);
+    
+    /* 内核 */
+    lv_obj_t *core_label = lv_label_create(info_card);
+    lv_label_set_text(core_label, "Core:");
+    lv_obj_set_style_text_font(core_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(core_label, lv_color_hex(0x888888), 0);
+    lv_obj_set_pos(core_label, 10, 40);
+    
+    lv_obj_t *core_value = lv_label_create(info_card);
+    lv_label_set_text(core_value, "Cortex-M7 @ 480MHz");
+    lv_obj_set_style_text_font(core_value, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(core_value, lv_color_hex(0xffffff), 0);
+    lv_obj_set_pos(core_value, 150, 40);
+    
+    /* 闪存 */
+    lv_obj_t *flash_label = lv_label_create(info_card);
+    lv_label_set_text(flash_label, "Flash:");
+    lv_obj_set_style_text_font(flash_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(flash_label, lv_color_hex(0x888888), 0);
+    lv_obj_set_pos(flash_label, 10, 70);
+    
+    lv_obj_t *flash_value = lv_label_create(info_card);
+    lv_label_set_text(flash_value, "2MB");
+    lv_obj_set_style_text_font(flash_value, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(flash_value, lv_color_hex(0xffffff), 0);
+    lv_obj_set_pos(flash_value, 150, 70);
+    
+    /* RAM */
+    lv_obj_t *ram_label = lv_label_create(info_card);
+    lv_label_set_text(ram_label, "RAM:");
+    lv_obj_set_style_text_font(ram_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(ram_label, lv_color_hex(0x888888), 0);
+    lv_obj_set_pos(ram_label, 10, 100);
+    
+    lv_obj_t *ram_value = lv_label_create(info_card);
+    lv_label_set_text(ram_value, "1MB");
+    lv_obj_set_style_text_font(ram_value, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(ram_value, lv_color_hex(0xffffff), 0);
+    lv_obj_set_pos(ram_value, 150, 100);
+    
+    /* 屏幕 */
+    lv_obj_t *screen_label = lv_label_create(info_card);
+    lv_label_set_text(screen_label, "Display:");
+    lv_obj_set_style_text_font(screen_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(screen_label, lv_color_hex(0x888888), 0);
+    lv_obj_set_pos(screen_label, 10, 130);
+    
+    lv_obj_t *screen_value = lv_label_create(info_card);
+    lv_label_set_text(screen_value, "460x460 RGB LCD");
+    lv_obj_set_style_text_font(screen_value, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(screen_value, lv_color_hex(0xffffff), 0);
+    lv_obj_set_pos(screen_value, 150, 130);
+    
+    /* 分隔线 */
+    lv_obj_t *line1 = lv_obj_create(info_card);
+    lv_obj_set_size(line1, 400, 1);
+    lv_obj_set_pos(line1, 10, 165);
+    lv_obj_set_style_border_width(line1, 0, 0);
+    lv_obj_set_style_bg_color(line1, lv_color_hex(0x34495e), 0);
+    
+    /* 连接状态 */
+    lv_obj_t *status_title = lv_label_create(info_card);
+    lv_label_set_text(status_title, "Connection Status:");
+    lv_obj_set_style_text_font(status_title, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(status_title, lv_color_hex(0x888888), 0);
+    lv_obj_set_pos(status_title, 10, 180);
+    
+    lv_obj_t *status_value = lv_label_create(info_card);
+    lv_label_set_text(status_value, "● Connected");
+    lv_obj_set_style_text_font(status_value, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(status_value, lv_color_hex(0x2ecc71), 0);
+    lv_obj_set_pos(status_value, 200, 180);
+    
+    /* 波特率 */
+    lv_obj_t *baud_label = lv_label_create(info_card);
+    lv_label_set_text(baud_label, "Baud Rate:");
+    lv_obj_set_style_text_font(baud_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(baud_label, lv_color_hex(0x888888), 0);
+    lv_obj_set_pos(baud_label, 10, 210);
+    
+    lv_obj_t *baud_value = lv_label_create(info_card);
+    lv_label_set_text(baud_value, "115200 bps");
+    lv_obj_set_style_text_font(baud_value, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(baud_value, lv_color_hex(0xffffff), 0);
+    lv_obj_set_pos(baud_value, 150, 210);
+    
+    /* 分隔线 */
+    lv_obj_t *line2 = lv_obj_create(info_card);
+    lv_obj_set_size(line2, 400, 1);
+    lv_obj_set_pos(line2, 10, 240);
+    lv_obj_set_style_border_width(line2, 0, 0);
+    lv_obj_set_style_bg_color(line2, lv_color_hex(0x34495e), 0);
+    
+    /* 运行时间标签 */
+    lv_obj_t *uptime_label = lv_label_create(info_card);
+    lv_label_set_text(uptime_label, "Uptime:");
+    lv_obj_set_style_text_font(uptime_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(uptime_label, lv_color_hex(0x888888), 0);
+    lv_obj_set_pos(uptime_label, 10, 255);
+    
+    /* 运行时间值 - 需要动态更新 */
+    lv_obj_t *uptime_value = lv_label_create(info_card);
+    lv_label_set_text(uptime_value, "00:00:00");
+    lv_obj_set_style_text_font(uptime_value, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(uptime_value, lv_color_hex(0xffffff), 0);
+    lv_obj_set_pos(uptime_value, 150, 255);
+    lv_obj_set_user_data(info_card, uptime_value);
+    
+    /* 底部提示 */
+    lv_obj_t *footer = lv_label_create(cont);
+    lv_label_set_text(footer, "System Ready");
+    lv_obj_set_style_text_font(footer, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(footer, lv_color_hex(0x888888), 0);
+    lv_obj_align(footer, LV_ALIGN_BOTTOM_MID, 0, -10);
+    
+    /* 重置运行时间 */
+    uptime_seconds = 0;
+    
+    /* 启动定时器更新运行时间 */
+    app_ctx->timer_running = 1;
+    app_ctx->app_timer = lv_timer_create(device_info_timer_cb, 1000, uptime_value);
+}
+
+/* 设备信息定时器回调 */
+static void device_info_timer_cb(lv_timer_t *timer)
+{
+    lv_obj_t *uptime_label = (lv_obj_t *)timer->user_data;
+    if (!uptime_label || !lv_obj_is_valid(uptime_label)) return;
+    
+    uptime_seconds++;
+    
+    int hours = uptime_seconds / 3600;
+    int minutes = (uptime_seconds % 3600) / 60;
+    int seconds = uptime_seconds % 60;
+    
+    char time_str[16];
+    sprintf(time_str, "%02d:%02d:%02d", hours, minutes, seconds);
+    lv_label_set_text(uptime_label, time_str);
+}
+
+/**********************
+ *      文件管理器页面
  **********************/
 static void setup_file_manager_screen(void)
 {
     lv_obj_t *cont = app_ctx->screen.main_cont;
     
-    /* 路径显示 - 固定高度 */
+    /* 路径显示 */
     lv_obj_t *path_label = lv_label_create(cont);
     lv_label_set_text(path_label, app_ctx->current_path);
     lv_obj_set_style_text_font(path_label, &lv_font_montserrat_12, 0);
@@ -455,7 +640,7 @@ static void setup_file_manager_screen(void)
     lv_obj_set_pos(path_label, 10, 5);
     lv_obj_set_size(path_label, 440, 20);
 
-    /* 文件列表 - 自适应剩余高度 */
+    /* 文件列表 */
     app_ctx->screen.list = lv_list_create(cont);
     lv_obj_set_size(app_ctx->screen.list, 440, SCREEN_HEIGHT - HEADER_HEIGHT - 35);
     lv_obj_set_pos(app_ctx->screen.list, 10, 30);
@@ -466,6 +651,9 @@ static void setup_file_manager_screen(void)
     load_directory(app_ctx->current_path, app_ctx->screen.list);
 }
 
+/**********************
+ *      音频播放器页面
+ **********************/
 static void setup_audio_player_screen(void)
 {
     lv_obj_t *cont = app_ctx->screen.main_cont;
@@ -481,7 +669,7 @@ static void setup_audio_player_screen(void)
     lv_obj_set_size(list_title, 440, 25);
     current_y += 30;
     
-    /* 播放列表 - 固定高度 */
+    /* 播放列表 */
     app_ctx->screen.list = lv_list_create(cont);
     lv_obj_set_size(app_ctx->screen.list, 440, 180);
     lv_obj_set_pos(app_ctx->screen.list, 10, current_y);
@@ -490,7 +678,7 @@ static void setup_audio_player_screen(void)
     lv_obj_set_scrollbar_mode(app_ctx->screen.list, LV_SCROLLBAR_MODE_AUTO);
     current_y += 185;
     
-    /* 当前播放信息容器 */
+    /* 当前播放信息 */
     lv_obj_t *now_playing_cont = lv_obj_create(cont);
     lv_obj_set_size(now_playing_cont, 440, 40);
     lv_obj_set_pos(now_playing_cont, 10, current_y);
@@ -510,7 +698,7 @@ static void setup_audio_player_screen(void)
     lv_obj_set_style_text_color(app_ctx->now_playing_label, lv_color_white(), 0);
     lv_obj_align(app_ctx->now_playing_label, LV_ALIGN_LEFT_MID, 30, 0);
     
-    /* 进度条容器 */
+    /* 进度条 */
     lv_obj_t *progress_cont = lv_obj_create(cont);
     lv_obj_set_size(progress_cont, 440, 40);
     lv_obj_set_pos(progress_cont, 10, current_y);
@@ -529,7 +717,7 @@ static void setup_audio_player_screen(void)
     lv_obj_set_style_text_color(app_ctx->time_label, lv_color_hex(0x888888), 0);
     lv_obj_align(app_ctx->time_label, LV_ALIGN_RIGHT_MID, 0, 0);
     
-    /* 控制按钮容器 */
+    /* 控制按钮 */
     lv_obj_t *control_cont = lv_obj_create(cont);
     lv_obj_set_size(control_cont, 440, 80);
     lv_obj_set_pos(control_cont, 10, current_y);
@@ -568,6 +756,9 @@ static void setup_audio_player_screen(void)
     load_audio_files("./", app_ctx->screen.list);
 }
 
+/**********************
+ *      音频处理器页面
+ **********************/
 static void setup_audio_processor_screen(void)
 {
     lv_obj_t *cont = app_ctx->screen.main_cont;
@@ -582,8 +773,8 @@ static void setup_audio_processor_screen(void)
     lv_obj_set_style_text_color(title, lv_color_hex(0x3498db), 0);
     lv_obj_set_pos(title, 10, 5);
     
-    /* 创建6个效果器框 */
-    for (int i = 0; i < 6; i++) {
+    /* 创建5个效果器框 */
+    for (int i = 0; i < 5; i++) {
         effect_t *effect = &app_ctx->effects[i];
         
         int row = i / 3;
@@ -626,7 +817,7 @@ static void setup_audio_processor_screen(void)
     /* 效果链显示 */
     lv_obj_t *chain_cont = lv_obj_create(cont);
     lv_obj_set_size(chain_cont, 440, 40);
-    lv_obj_set_pos(chain_cont, 10, 250);
+    lv_obj_set_pos(chain_cont, 10, 220);
     lv_obj_set_style_border_width(chain_cont, 1, 0);
     lv_obj_set_style_border_color(chain_cont, lv_color_hex(0x34495e), 0);
     lv_obj_set_style_bg_opa(chain_cont, LV_OPA_20, 0);
@@ -641,6 +832,9 @@ static void setup_audio_processor_screen(void)
     update_effect_chain_display();
 }
 
+/**********************
+ *      效果器配置页面
+ **********************/
 static void setup_effect_config_screen(int effect_index)
 {
     if (effect_index < 0 || effect_index >= 6) return;
@@ -977,7 +1171,7 @@ static void update_effect_chain_display(void)
     char chain_text[128] = "";
     int enabled_count = 0;
     
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 5; i++) {
         if (app_ctx->effects[i].enabled) {
             if (enabled_count > 0) {
                 strcat(chain_text, " → ");
