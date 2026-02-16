@@ -800,87 +800,133 @@ static void setup_audio_player_screen(void)
 }
 
 /**********************
- *      音频处理器页面 
+ *      音频处理器页面 - 修复布局问题
  **********************/
 static void setup_audio_processor_screen(void)
 {
     lv_obj_t *cont = app_ctx->screen.main_cont;
     
-    lv_coord_t padding = 8;
-    lv_coord_t card_width = (440 - padding * 3) / 3;
-    lv_coord_t card_height = 100;
+    /* 清空容器 */
+    lv_obj_clean(cont);
     
+    /* 计算网格尺寸 - 精确计算确保不重叠 */
+    lv_coord_t padding = 10;
+    lv_coord_t card_width = (440 - padding * 4) / 3;  // 440宽度，3列，每边padding，中间2个间隔
+    lv_coord_t card_height = 85;  // 固定高度，确保下方有足够空间
+    
+    /* 标题 */
     lv_obj_t *title = lv_label_create(cont);
     lv_label_set_text(title, "Audio Effects");
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(title, lv_color_hex(0x3498db), 0);
-    lv_obj_set_pos(title, 10, 5);
+    lv_obj_set_pos(title, 10, 10);
     
-    /* 创建5个效果器框 - 调整间距避免重叠 */
+    /* 创建5个效果器框 - 2行布局，第一行3个，第二行2个 */
     for (int i = 0; i < 5; i++) {
         effect_t *effect = &app_ctx->effects[i];
         
         int row = i / 3;
         int col = i % 3;
-        int x = 10 + col * (card_width + padding);
-        int y = 40 + row * (card_height + padding);
         
+        /* 第二行只有2个，居中显示 */
+        int x;
+        if (row == 1) {
+            // 第二行只有两个卡片，计算居中位置
+            int total_width = card_width * 2 + padding;
+            int start_x = (440 - total_width) / 2;
+            x = start_x + col * (card_width + padding);
+        } else {
+            x = 10 + col * (card_width + padding);
+        }
+        
+        int y = 45 + row * (card_height + padding);
+        
+        /* 效果器卡片 */
         lv_obj_t *card = lv_btn_create(cont);
         lv_obj_set_size(card, card_width, card_height);
         lv_obj_set_pos(card, x, y);
-        lv_obj_set_style_radius(card, 8, 0);
+        lv_obj_set_style_radius(card, 12, 0);
         lv_obj_set_style_bg_color(card, lv_color_hex(0x2c3e50), 0);
+        lv_obj_set_style_shadow_width(card, 4, 0);
+        lv_obj_set_style_shadow_color(card, lv_color_hex(0x000000), 0);
+        lv_obj_set_style_shadow_ofs_y(card, 2, 0);
         lv_obj_add_event_cb(card, on_effect_click, LV_EVENT_CLICKED, (void *)(intptr_t)i);
         
         effect->btn = card;
         
-        lv_obj_t *index = lv_label_create(card);
-        lv_label_set_text_fmt(index, "%d", i + 1);
-        lv_obj_set_style_text_font(index, &lv_font_montserrat_12, 0);
-        lv_obj_set_style_text_color(index, lv_color_hex(0x888888), 0);
-        lv_obj_align(index, LV_ALIGN_TOP_LEFT, 5, 5);
+        /* 效果器图标 */
+        const char *icon;
+        switch (i) {
+            case 0: icon = LV_SYMBOL_VOLUME_MAX; break;
+            case 1: icon = LV_SYMBOL_LOOP; break;
+            case 2: icon = LV_SYMBOL_EDIT; break;
+            case 3: icon = LV_SYMBOL_SETTINGS; break;
+            case 4: icon = LV_SYMBOL_WARNING; break;
+            default: icon = LV_SYMBOL_AUDIO; break;
+        }
         
-        lv_obj_t *name = lv_label_create(card);
-        lv_label_set_text(name, effect->name);
-        lv_obj_set_style_text_font(name, &lv_font_montserrat_12, 0);
-        lv_obj_set_style_text_color(name, lv_color_white(), 0);
-        lv_obj_align(name, LV_ALIGN_BOTTOM_LEFT, 5, -5);
+        lv_obj_t *icon_label = lv_label_create(card);
+        lv_label_set_text(icon_label, icon);
+        lv_obj_set_style_text_font(icon_label, &lv_font_montserrat_20, 0);
+        lv_obj_set_style_text_color(icon_label, lv_color_hex(0x3498db), 0);
+        lv_obj_align(icon_label, LV_ALIGN_TOP_MID, 0, 10);
         
-        /* 状态指示器 - 移到右上角 */
+        /* 效果器名称 */
+        lv_obj_t *name_label = lv_label_create(card);
+        lv_label_set_text(name_label, effect->name);
+        lv_obj_set_style_text_font(name_label, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_color(name_label, lv_color_white(), 0);
+        lv_obj_align(name_label, LV_ALIGN_BOTTOM_MID, 0, -8);
+        
+        /* 状态指示器 - 放在右上角 */
         lv_obj_t *indicator = lv_obj_create(card);
-        lv_obj_set_size(indicator, 8, 8);
+        lv_obj_set_size(indicator, 10, 10);
         lv_obj_set_style_radius(indicator, LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_border_width(indicator, 0, 0);
         lv_obj_set_style_bg_color(indicator, effect->enabled ? lv_color_hex(0x2ecc71) : lv_color_hex(0xe74c3c), 0);
-        lv_obj_align(indicator, LV_ALIGN_TOP_RIGHT, -8, 5);
+        lv_obj_align(indicator, LV_ALIGN_TOP_RIGHT, -8, 8);
         
         effect->status_indicator = indicator;
     }
     
-    /* 效果链显示区域 - 调整位置避免与按钮重叠 */
-    lv_obj_t *chain_label_title = lv_label_create(cont);
-    lv_label_set_text(chain_label_title, "Effect Chain:");
-    lv_obj_set_style_text_font(chain_label_title, &lv_font_montserrat_12, 0);
-    lv_obj_set_style_text_color(chain_label_title, lv_color_hex(0x888888), 0);
-    lv_obj_set_pos(chain_label_title, 10, 215);
+    /* 效果链显示区域 - 放在最下方，确保不重叠 */
+    lv_obj_t *chain_bg = lv_obj_create(cont);
+    lv_obj_set_size(chain_bg, 440, 70);
+    lv_obj_set_pos(chain_bg, 10, 270);
+    lv_obj_set_style_border_width(chain_bg, 1, 0);
+    lv_obj_set_style_border_color(chain_bg, lv_color_hex(0x34495e), 0);
+    lv_obj_set_style_bg_color(chain_bg, lv_color_hex(0x2c3e50), 0);
+    lv_obj_set_style_radius(chain_bg, 8, 0);
+    lv_obj_set_style_pad_all(chain_bg, 10, 0);
     
-    /* 效果链容器 - 放在效果器下方，有足够间距 */
-    lv_obj_t *chain_cont = lv_obj_create(cont);
-    lv_obj_set_size(chain_cont, 440, 40);
-    lv_obj_set_pos(chain_cont, 10, 235);
-    lv_obj_set_style_border_width(chain_cont, 1, 0);
-    lv_obj_set_style_border_color(chain_cont, lv_color_hex(0x34495e), 0);
-    lv_obj_set_style_bg_opa(chain_cont, LV_OPA_20, 0);
-    lv_obj_set_style_radius(chain_cont, 8, 0);
-    lv_obj_set_scrollbar_mode(chain_cont, LV_SCROLLBAR_MODE_OFF);
+    /* 效果链标题 */
+    lv_obj_t *chain_title = lv_label_create(chain_bg);
+    lv_label_set_text(chain_title, "Active Effect Chain:");
+    lv_obj_set_style_text_font(chain_title, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(chain_title, lv_color_hex(0x888888), 0);
+    lv_obj_set_pos(chain_title, 10, 5);
     
-    app_ctx->chain_label = lv_label_create(chain_cont);
-    lv_label_set_text(app_ctx->chain_label, "None");
-    lv_obj_set_style_text_font(app_ctx->chain_label, &lv_font_montserrat_12, 0);
+    /* 效果链内容 - 动态显示启用的效果器 */
+    app_ctx->chain_label = lv_label_create(chain_bg);
+    lv_obj_set_style_text_font(app_ctx->chain_label, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(app_ctx->chain_label, lv_color_hex(0xffffff), 0);
-    lv_obj_center(app_ctx->chain_label);
+    lv_obj_set_size(app_ctx->chain_label, 420, 30);
+    lv_obj_set_pos(app_ctx->chain_label, 10, 25);
+    lv_label_set_long_mode(app_ctx->chain_label, LV_LABEL_LONG_SCROLL_CIRCULAR);  // 如果文字太长，滚动显示
     
+    /* 底部提示信息 */
+    lv_obj_t *hint = lv_label_create(cont);
+    lv_label_set_text(hint, "Tap any effect to configure");
+    lv_obj_set_style_text_font(hint, &lv_font_montserrat_10, 0);
+    lv_obj_set_style_text_color(hint, lv_color_hex(0x888888), 0);
+    lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -5);
+    
+    /* 初始化效果链显示 */
     update_effect_chain_display();
+    
+    /* 启动定时器（如果需要） */
+    app_ctx->timer_running = 1;
+    app_ctx->app_timer = lv_timer_create(audio_processor_timer_cb, 1000, app_ctx);
 }
 
 /**********************
@@ -1266,7 +1312,7 @@ static void on_effect_enable_switch(lv_event_t *e)
 }
 
 /**********************
- *      效果链显示
+ *      更新效果链显示
  **********************/
 static void update_effect_chain_display(void)
 {
@@ -1280,7 +1326,7 @@ static void update_effect_chain_display(void)
     for (int i = 0; i < 5; i++) {
         if (app_ctx->effects[i].enabled) {
             if (enabled_count > 0) {
-                strcat(chain_text, " → ");
+                strcat(chain_text, "  →  ");
             }
             strcat(chain_text, app_ctx->effects[i].name);
             enabled_count++;
@@ -1288,7 +1334,10 @@ static void update_effect_chain_display(void)
     }
     
     if (enabled_count == 0) {
-        strcpy(chain_text, "None");
+        strcpy(chain_text, "No active effects");
+        lv_obj_set_style_text_color(app_ctx->chain_label, lv_color_hex(0x888888), 0);
+    } else {
+        lv_obj_set_style_text_color(app_ctx->chain_label, lv_color_hex(0x2ecc71), 0);
     }
     
     lv_label_set_text(app_ctx->chain_label, chain_text);
@@ -1331,7 +1380,11 @@ static void audio_player_timer_cb(lv_timer_t *timer)
     lv_label_set_text(ctx->time_label, time_str);
 }
 
+/**********************
+ *      音频处理器定时器回调 - 用于定期更新效果链（如果需要）
+ **********************/
 static void audio_processor_timer_cb(lv_timer_t *timer)
 {
     (void)timer;
+    /* 可以在这里添加需要定期更新的逻辑 */
 }
