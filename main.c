@@ -95,19 +95,22 @@ typedef struct {
 } switch_data_t;
 
 typedef struct {
+    lv_obj_t *screen;
+    lv_obj_t *header;
+    lv_obj_t *back_btn;
+    lv_obj_t *title;
+    lv_obj_t *main_cont;
+    lv_obj_t *list;
+} screen_components_t;
+
+typedef struct {
     /* 主屏幕 */
     lv_obj_t *main_screen;
     
     /* 当前状态 */
     app_type_t current_app;
     int current_effect_index;
-    
-    /* 当前屏幕组件 */
-    lv_obj_t *current_screen;
-    lv_obj_t *current_header;
-    lv_obj_t *current_content;
-    lv_obj_t *current_list;
-    lv_obj_t *chain_label;
+    screen_components_t screen;
     
     /* 文件相关 */
     file_info_t files[MAX_FILES];
@@ -125,6 +128,9 @@ typedef struct {
     /* 效果器相关 */
     effect_t effects[MAX_EFFECTS];
     int effect_count;
+    lv_obj_t *effect_cont;
+    lv_obj_t *param_cont;
+    lv_obj_t *chain_label;
     
     /* 定时器管理 */
     lv_timer_t *app_timer;
@@ -151,8 +157,8 @@ static int screen_switch_in_progress = 0;
  **********************/
 static void hal_init(void);
 static void create_main_screen(void);
-static void switch_to_screen(app_type_t app_type);
-static void cleanup_current_screen(void);
+static void create_app_screen(app_type_t app_type);
+static void setup_header(lv_obj_t *screen, const char *title);
 static void setup_file_manager_screen(void);
 static void setup_audio_player_screen(void);
 static void setup_audio_processor_screen(void);
@@ -161,18 +167,17 @@ static void load_directory(const char *path, lv_obj_t *list);
 static void load_audio_files(const char *path, lv_obj_t *list);
 static void on_app_click(lv_event_t *e);
 static void on_back_click(lv_event_t *e);
-static void on_effect_config_back(lv_event_t *e);
 static void on_file_click(lv_event_t *e);
 static void on_audio_file_click(lv_event_t *e);
 static void on_delete_confirm(lv_event_t *e);
 static void on_effect_click(lv_event_t *e);
+static void on_effect_config_back(lv_event_t *e);
 static void on_play_click(lv_event_t *e);
 static void on_stop_click(lv_event_t *e);
 static void on_config_slider_change(lv_event_t *e);
 static void on_effect_enable_switch(lv_event_t *e);
 static void show_notification(const char *msg, lv_color_t color);
 static void update_effect_chain_display(void);
-static void free_callback_data(lv_event_t *e);
 static void audio_player_timer_cb(lv_timer_t *timer);
 static void audio_processor_timer_cb(lv_timer_t *timer);
 
@@ -263,7 +268,6 @@ static void create_main_screen(void)
     lv_scr_load(app_ctx->main_screen);
     
     lv_obj_set_style_bg_color(app_ctx->main_screen, lv_color_hex(0x1a1a1a), 0);
-    lv_obj_set_scrollbar_mode(app_ctx->main_screen, LV_SCROLLBAR_MODE_OFF);
     
     lv_coord_t padding = 15;
     lv_coord_t card_width = (SCREEN_WIDTH - padding * 3) / 2;
@@ -305,7 +309,6 @@ static void create_main_screen(void)
         lv_obj_set_style_radius(card, 16, 0);
         lv_obj_set_style_bg_color(card, lv_color_hex(0x2c3e50), 0);
         lv_obj_set_style_shadow_width(card, 8, 0);
-        lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF);
         lv_obj_add_event_cb(card, on_app_click, LV_EVENT_CLICKED, (void *)(intptr_t)cards[i].type);
         
         lv_obj_t *icon = lv_label_create(card);
@@ -325,42 +328,28 @@ static void create_main_screen(void)
 /**********************
  *      屏幕管理
  **********************/
-static void cleanup_current_screen(void)
+static void create_app_screen(app_type_t app_type)
 {
+    if (screen_switch_in_progress) return;
+    screen_switch_in_progress = 1;
+    
+    /* 停止定时器 */
     if (app_ctx->app_timer) {
         app_ctx->timer_running = 0;
         lv_timer_del(app_ctx->app_timer);
         app_ctx->app_timer = NULL;
     }
-    
-    if (app_ctx->current_screen) {
-        lv_obj_del_async(app_ctx->current_screen);
-        app_ctx->current_screen = NULL;
+
+    /* 删除旧的屏幕对象 */
+    if (app_ctx->screen.screen) {
+        lv_obj_del_async(app_ctx->screen.screen);
+        app_ctx->screen.screen = NULL;
     }
     
-    /* 重置指针 */
-    app_ctx->current_header = NULL;
-    app_ctx->current_content = NULL;
-    app_ctx->current_list = NULL;
-    app_ctx->play_btn = NULL;
-    app_ctx->progress_bar = NULL;
-    app_ctx->time_label = NULL;
-    app_ctx->now_playing_label = NULL;
-    app_ctx->chain_label = NULL;
-}
-
-static void switch_to_screen(app_type_t app_type)
-{
-    if (screen_switch_in_progress) return;
-    screen_switch_in_progress = 1;
-    
-    cleanup_current_screen();
-    
     app_ctx->current_app = app_type;
-    app_ctx->current_screen = lv_obj_create(NULL);
+    app_ctx->screen.screen = lv_obj_create(NULL);
     
-    lv_obj_set_style_bg_color(app_ctx->current_screen, lv_color_hex(0x1a1a1a), 0);
-    lv_obj_set_scrollbar_mode(app_ctx->current_screen, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_bg_color(app_ctx->screen.screen, lv_color_hex(0x1a1a1a), 0);
     
     const char *titles[] = {
         [APP_FILE_MANAGER] = "File Manager",
@@ -369,57 +358,31 @@ static void switch_to_screen(app_type_t app_type)
         [APP_EFFECT_CONFIG] = "Effect Configuration"
     };
     
-    /* 标题栏 - 固定，无滚动条 */
-    app_ctx->current_header = lv_obj_create(app_ctx->current_screen);
-    lv_obj_set_size(app_ctx->current_header, SCREEN_WIDTH, HEADER_HEIGHT);
-    lv_obj_set_pos(app_ctx->current_header, 0, 0);
-    lv_obj_set_style_border_width(app_ctx->current_header, 0, 0);
-    lv_obj_set_style_bg_color(app_ctx->current_header, lv_color_hex(0x2c3e50), 0);
-    lv_obj_set_scrollbar_mode(app_ctx->current_header, LV_SCROLLBAR_MODE_OFF);
+    /* 设置标题栏 - 固定在顶部，无滚动条 */
+    setup_header(app_ctx->screen.screen, titles[app_type]);
     
-    /* 返回按钮 */
-    lv_obj_t *back_btn = lv_btn_create(app_ctx->current_header);
-    lv_obj_set_size(back_btn, BACK_BTN_SIZE, HEADER_HEIGHT - 10);
-    lv_obj_align(back_btn, LV_ALIGN_LEFT_MID, 5, 0);
-    lv_obj_set_style_radius(back_btn, 8, 0);
-    lv_obj_set_style_bg_color(back_btn, lv_color_hex(0x34495e), 0);
-    lv_obj_set_scrollbar_mode(back_btn, LV_SCROLLBAR_MODE_OFF);
+    /* 主内容容器 - 位于标题栏下方，可以有滚动条 */
+    app_ctx->screen.main_cont = lv_obj_create(app_ctx->screen.screen);
+    lv_obj_set_size(app_ctx->screen.main_cont, SCREEN_WIDTH, SCREEN_HEIGHT - HEADER_HEIGHT);
+    lv_obj_set_pos(app_ctx->screen.main_cont, 0, HEADER_HEIGHT);
+    lv_obj_set_style_border_width(app_ctx->screen.main_cont, 0, 0);
+    lv_obj_set_style_bg_color(app_ctx->screen.main_cont, lv_color_hex(0x1a1a1a), 0);
     
-    lv_obj_t *back_label = lv_label_create(back_btn);
-    lv_label_set_text(back_label, LV_SYMBOL_LEFT);
-    lv_obj_set_style_text_color(back_label, lv_color_white(), 0);
-    lv_obj_center(back_label);
-    
-    lv_obj_add_event_cb(back_btn, 
-        app_type == APP_EFFECT_CONFIG ? on_effect_config_back : on_back_click, 
-        LV_EVENT_CLICKED, NULL);
-    
-    lv_obj_t *title = lv_label_create(app_ctx->current_header);
-    lv_label_set_text(title, titles[app_type]);
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(title, lv_color_white(), 0);
-    lv_obj_center(title);
-    
-    /* 内容容器 */
-    app_ctx->current_content = lv_obj_create(app_ctx->current_screen);
-    lv_obj_set_size(app_ctx->current_content, SCREEN_WIDTH, SCREEN_HEIGHT - HEADER_HEIGHT);
-    lv_obj_set_pos(app_ctx->current_content, 0, HEADER_HEIGHT);
-    lv_obj_set_style_border_width(app_ctx->current_content, 0, 0);
-    lv_obj_set_style_bg_color(app_ctx->current_content, lv_color_hex(0x1a1a1a), 0);
-    
-    /* 根据页面类型决定滚动条模式 */
+    /* 根据页面类型设置滚动条 */
     switch (app_type) {
         case APP_FILE_MANAGER:
         case APP_AUDIO_PLAYER:
-            lv_obj_set_scrollbar_mode(app_ctx->current_content, LV_SCROLLBAR_MODE_AUTO);
-            lv_obj_set_scroll_dir(app_ctx->current_content, LV_DIR_VER);
+            /* 文件列表和播放列表需要滚动 */
+            lv_obj_set_scrollbar_mode(app_ctx->screen.main_cont, LV_SCROLLBAR_MODE_AUTO);
+            lv_obj_set_scroll_dir(app_ctx->screen.main_cont, LV_DIR_VER);
             break;
         case APP_AUDIO_PROCESSOR:
         case APP_EFFECT_CONFIG:
-            lv_obj_set_scrollbar_mode(app_ctx->current_content, LV_SCROLLBAR_MODE_OFF);
+            /* 效果器页面内容固定，不需要滚动 */
+            lv_obj_set_scrollbar_mode(app_ctx->screen.main_cont, LV_SCROLLBAR_MODE_OFF);
             break;
         default:
-            lv_obj_set_scrollbar_mode(app_ctx->current_content, LV_SCROLLBAR_MODE_OFF);
+            lv_obj_set_scrollbar_mode(app_ctx->screen.main_cont, LV_SCROLLBAR_MODE_OFF);
             break;
     }
     
@@ -432,56 +395,110 @@ static void switch_to_screen(app_type_t app_type)
         default: break;
     }
     
-    lv_scr_load(app_ctx->current_screen);
+    lv_scr_load(app_ctx->screen.screen);
     screen_switch_in_progress = 0;
 }
 
+/**
+ * @brief 创建通用标题栏 - 固定在顶部，无滚动条
+ */
+static void setup_header(lv_obj_t *screen, const char *title)
+{
+    lv_obj_t *header = lv_obj_create(screen);
+    lv_obj_set_size(header, SCREEN_WIDTH, HEADER_HEIGHT);
+    lv_obj_set_pos(header, 0, 0);
+    lv_obj_set_style_border_width(header, 0, 0);
+    lv_obj_set_style_bg_color(header, lv_color_hex(0x2c3e50), 0);
+    lv_obj_set_style_pad_all(header, 0, 0);
+    lv_obj_set_scrollbar_mode(header, LV_SCROLLBAR_MODE_OFF);  /* 标题栏禁止滚动 */
+
+    /* 返回按钮 */
+    lv_obj_t *back_btn = lv_btn_create(header);
+    lv_obj_set_size(back_btn, BACK_BTN_SIZE, HEADER_HEIGHT - 10);
+    lv_obj_align(back_btn, LV_ALIGN_LEFT_MID, 5, 0);
+    lv_obj_set_style_radius(back_btn, 8, 0);
+    lv_obj_set_style_bg_color(back_btn, lv_color_hex(0x34495e), 0);
+    lv_obj_set_scrollbar_mode(back_btn, LV_SCROLLBAR_MODE_OFF);
+    
+    lv_obj_t *back_label = lv_label_create(back_btn);
+    lv_label_set_text(back_label, LV_SYMBOL_LEFT);
+    lv_obj_set_style_text_color(back_label, lv_color_white(), 0);
+    lv_obj_center(back_label);
+    
+    lv_obj_add_event_cb(back_btn, 
+        app_ctx->current_app == APP_EFFECT_CONFIG ? on_effect_config_back : on_back_click, 
+        LV_EVENT_CLICKED, NULL);
+
+    /* 标题 - 白色 */
+    lv_obj_t *title_label = lv_label_create(header);
+    lv_label_set_text(title_label, title);
+    lv_obj_set_style_text_font(title_label, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(title_label, lv_color_white(), 0);
+    lv_obj_center(title_label);
+
+    app_ctx->screen.header = header;
+    app_ctx->screen.back_btn = back_btn;
+}
+
 /**********************
- *      页面构建
+ *      页面构建 - 自适应布局
  **********************/
 static void setup_file_manager_screen(void)
 {
-    lv_obj_t *cont = app_ctx->current_content;
-    lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);
+    lv_obj_t *cont = app_ctx->screen.main_cont;
     
+    /* 路径显示 - 固定高度 */
     lv_obj_t *path_label = lv_label_create(cont);
     lv_label_set_text(path_label, app_ctx->current_path);
     lv_obj_set_style_text_font(path_label, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(path_label, lv_color_hex(0x888888), 0);
-    lv_obj_set_width(path_label, LV_PCT(100));
+    lv_obj_set_pos(path_label, 10, 5);
+    lv_obj_set_size(path_label, 440, 20);
+
+    /* 文件列表 - 自适应剩余高度 */
+    app_ctx->screen.list = lv_list_create(cont);
+    lv_obj_set_size(app_ctx->screen.list, 440, SCREEN_HEIGHT - HEADER_HEIGHT - 35);
+    lv_obj_set_pos(app_ctx->screen.list, 10, 30);
+    lv_obj_set_style_bg_color(app_ctx->screen.list, lv_color_hex(0x2c3e50), 0);
+    lv_obj_set_style_border_color(app_ctx->screen.list, lv_color_hex(0x34495e), 0);
+    lv_obj_set_scrollbar_mode(app_ctx->screen.list, LV_SCROLLBAR_MODE_AUTO);
     
-    app_ctx->current_list = lv_list_create(cont);
-    lv_obj_set_size(app_ctx->current_list, LV_PCT(100), LV_PCT(100));
-    lv_obj_set_style_border_width(app_ctx->current_list, 1, 0);
-    lv_obj_set_style_border_color(app_ctx->current_list, lv_color_hex(0x34495e), 0);
-    lv_obj_set_style_bg_color(app_ctx->current_list, lv_color_hex(0x2c3e50), 0);
-    lv_obj_set_scrollbar_mode(app_ctx->current_list, LV_SCROLLBAR_MODE_AUTO);
-    
-    load_directory(app_ctx->current_path, app_ctx->current_list);
+    load_directory(app_ctx->current_path, app_ctx->screen.list);
 }
 
 static void setup_audio_player_screen(void)
 {
-    lv_obj_t *cont = app_ctx->current_content;
-    lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);
+    lv_obj_t *cont = app_ctx->screen.main_cont;
     
+    lv_coord_t current_y = 5;
+    
+    /* 播放列表标题 */
     lv_obj_t *list_title = lv_label_create(cont);
     lv_label_set_text(list_title, LV_SYMBOL_AUDIO " Playlist");
     lv_obj_set_style_text_font(list_title, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(list_title, lv_color_hex(0x3498db), 0);
+    lv_obj_set_pos(list_title, 10, current_y);
+    lv_obj_set_size(list_title, 440, 25);
+    current_y += 30;
     
-    app_ctx->current_list = lv_list_create(cont);
-    lv_obj_set_size(app_ctx->current_list, LV_PCT(100), 180);
-    lv_obj_set_style_bg_color(app_ctx->current_list, lv_color_hex(0x2c3e50), 0);
-    lv_obj_set_style_border_color(app_ctx->current_list, lv_color_hex(0x34495e), 0);
-    lv_obj_set_scrollbar_mode(app_ctx->current_list, LV_SCROLLBAR_MODE_AUTO);
+    /* 播放列表 - 固定高度 */
+    app_ctx->screen.list = lv_list_create(cont);
+    lv_obj_set_size(app_ctx->screen.list, 440, 180);
+    lv_obj_set_pos(app_ctx->screen.list, 10, current_y);
+    lv_obj_set_style_bg_color(app_ctx->screen.list, lv_color_hex(0x2c3e50), 0);
+    lv_obj_set_style_border_color(app_ctx->screen.list, lv_color_hex(0x34495e), 0);
+    lv_obj_set_scrollbar_mode(app_ctx->screen.list, LV_SCROLLBAR_MODE_AUTO);
+    current_y += 185;
     
+    /* 当前播放信息容器 */
     lv_obj_t *now_playing_cont = lv_obj_create(cont);
-    lv_obj_set_size(now_playing_cont, LV_PCT(100), 40);
+    lv_obj_set_size(now_playing_cont, 440, 40);
+    lv_obj_set_pos(now_playing_cont, 10, current_y);
     lv_obj_set_style_border_width(now_playing_cont, 1, 0);
     lv_obj_set_style_border_color(now_playing_cont, lv_color_hex(0x34495e), 0);
     lv_obj_set_style_bg_opa(now_playing_cont, LV_OPA_20, 0);
     lv_obj_set_scrollbar_mode(now_playing_cont, LV_SCROLLBAR_MODE_OFF);
+    current_y += 45;
     
     lv_obj_t *playing_icon = lv_label_create(now_playing_cont);
     lv_label_set_text(playing_icon, LV_SYMBOL_PLAY);
@@ -493,32 +510,38 @@ static void setup_audio_player_screen(void)
     lv_obj_set_style_text_color(app_ctx->now_playing_label, lv_color_white(), 0);
     lv_obj_align(app_ctx->now_playing_label, LV_ALIGN_LEFT_MID, 30, 0);
     
+    /* 进度条容器 */
     lv_obj_t *progress_cont = lv_obj_create(cont);
-    lv_obj_set_size(progress_cont, LV_PCT(100), 40);
+    lv_obj_set_size(progress_cont, 440, 40);
+    lv_obj_set_pos(progress_cont, 10, current_y);
     lv_obj_set_style_border_width(progress_cont, 0, 0);
     lv_obj_set_style_bg_opa(progress_cont, LV_OPA_TRANSP, 0);
-    lv_obj_set_flex_flow(progress_cont, LV_FLEX_FLOW_ROW);
     lv_obj_set_scrollbar_mode(progress_cont, LV_SCROLLBAR_MODE_OFF);
+    current_y += 45;
     
     app_ctx->progress_bar = lv_bar_create(progress_cont);
-    lv_obj_set_size(app_ctx->progress_bar, LV_PCT(70), 8);
+    lv_obj_set_size(app_ctx->progress_bar, 300, 8);
+    lv_obj_align(app_ctx->progress_bar, LV_ALIGN_LEFT_MID, 0, 0);
     lv_bar_set_range(app_ctx->progress_bar, 0, 100);
     
     app_ctx->time_label = lv_label_create(progress_cont);
     lv_label_set_text(app_ctx->time_label, "00:00/03:00");
     lv_obj_set_style_text_color(app_ctx->time_label, lv_color_hex(0x888888), 0);
+    lv_obj_align(app_ctx->time_label, LV_ALIGN_RIGHT_MID, 0, 0);
     
+    /* 控制按钮容器 */
     lv_obj_t *control_cont = lv_obj_create(cont);
-    lv_obj_set_size(control_cont, LV_PCT(100), 80);
+    lv_obj_set_size(control_cont, 440, 80);
+    lv_obj_set_pos(control_cont, 10, current_y);
     lv_obj_set_style_border_width(control_cont, 1, 0);
     lv_obj_set_style_border_color(control_cont, lv_color_hex(0x34495e), 0);
-    lv_obj_set_flex_flow(control_cont, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(control_cont, LV_FLEX_ALIGN_SPACE_EVENLY, 
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_bg_opa(control_cont, LV_OPA_20, 0);
     lv_obj_set_scrollbar_mode(control_cont, LV_SCROLLBAR_MODE_OFF);
     
+    /* 播放按钮 */
     app_ctx->play_btn = lv_btn_create(control_cont);
-    lv_obj_set_size(app_ctx->play_btn, 80, 60);
+    lv_obj_set_size(app_ctx->play_btn, 100, 60);
+    lv_obj_align(app_ctx->play_btn, LV_ALIGN_LEFT_MID, 50, 0);
     lv_obj_set_style_bg_color(app_ctx->play_btn, lv_color_hex(0x3498db), 0);
     lv_obj_add_event_cb(app_ctx->play_btn, on_play_click, LV_EVENT_CLICKED, NULL);
     
@@ -527,8 +550,10 @@ static void setup_audio_player_screen(void)
     lv_obj_set_style_text_color(play_label, lv_color_white(), 0);
     lv_obj_center(play_label);
     
+    /* 停止按钮 */
     lv_obj_t *stop_btn = lv_btn_create(control_cont);
-    lv_obj_set_size(stop_btn, 80, 60);
+    lv_obj_set_size(stop_btn, 100, 60);
+    lv_obj_align(stop_btn, LV_ALIGN_RIGHT_MID, -50, 0);
     lv_obj_set_style_bg_color(stop_btn, lv_color_hex(0xe74c3c), 0);
     lv_obj_add_event_cb(stop_btn, on_stop_click, LV_EVENT_CLICKED, NULL);
     
@@ -540,17 +565,15 @@ static void setup_audio_player_screen(void)
     app_ctx->timer_running = 1;
     app_ctx->app_timer = lv_timer_create(audio_player_timer_cb, 100, app_ctx);
     
-    load_audio_files("./", app_ctx->current_list);
+    load_audio_files("./", app_ctx->screen.list);
 }
 
 static void setup_audio_processor_screen(void)
 {
-    lv_obj_t *cont = app_ctx->current_content;
-    
-    lv_obj_set_scrollbar_mode(cont, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_t *cont = app_ctx->screen.main_cont;
     
     lv_coord_t padding = 8;
-    lv_coord_t card_width = (SCREEN_WIDTH - 20 - padding * 3) / 3;
+    lv_coord_t card_width = (440 - padding * 3) / 3;
     lv_coord_t card_height = 100;
     
     lv_obj_t *title = lv_label_create(cont);
@@ -559,6 +582,7 @@ static void setup_audio_processor_screen(void)
     lv_obj_set_style_text_color(title, lv_color_hex(0x3498db), 0);
     lv_obj_set_pos(title, 10, 5);
     
+    /* 创建6个效果器框 */
     for (int i = 0; i < 6; i++) {
         effect_t *effect = &app_ctx->effects[i];
         
@@ -572,7 +596,6 @@ static void setup_audio_processor_screen(void)
         lv_obj_set_pos(card, x, y);
         lv_obj_set_style_radius(card, 8, 0);
         lv_obj_set_style_bg_color(card, lv_color_hex(0x2c3e50), 0);
-        lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF);
         lv_obj_add_event_cb(card, on_effect_click, LV_EVENT_CLICKED, (void *)(intptr_t)i);
         
         effect->btn = card;
@@ -589,7 +612,7 @@ static void setup_audio_processor_screen(void)
         lv_obj_set_style_text_color(name, lv_color_white(), 0);
         lv_obj_align(name, LV_ALIGN_BOTTOM_LEFT, 5, -5);
         
-        /* 创建状态指示器 */
+        /* 状态指示器 */
         lv_obj_t *indicator = lv_obj_create(card);
         lv_obj_set_size(indicator, 8, 8);
         lv_obj_set_style_radius(indicator, LV_RADIUS_CIRCLE, 0);
@@ -600,8 +623,9 @@ static void setup_audio_processor_screen(void)
         effect->status_indicator = indicator;
     }
     
+    /* 效果链显示 */
     lv_obj_t *chain_cont = lv_obj_create(cont);
-    lv_obj_set_size(chain_cont, SCREEN_WIDTH - 20, 40);
+    lv_obj_set_size(chain_cont, 440, 40);
     lv_obj_set_pos(chain_cont, 10, 250);
     lv_obj_set_style_border_width(chain_cont, 1, 0);
     lv_obj_set_style_border_color(chain_cont, lv_color_hex(0x34495e), 0);
@@ -622,9 +646,7 @@ static void setup_effect_config_screen(int effect_index)
     if (effect_index < 0 || effect_index >= 6) return;
     
     effect_t *effect = &app_ctx->effects[effect_index];
-    lv_obj_t *cont = app_ctx->current_content;
-    
-    lv_obj_set_scrollbar_mode(cont, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_t *cont = app_ctx->screen.main_cont;
     
     const effect_config_t *config = NULL;
     for (size_t i = 0; i < sizeof(effect_presets)/sizeof(effect_presets[0]); i++) {
@@ -634,27 +656,32 @@ static void setup_effect_config_screen(int effect_index)
         }
     }
     
+    lv_coord_t current_y = 10;
+    
+    /* 标题 */
     lv_obj_t *title = lv_label_create(cont);
     lv_label_set_text_fmt(title, "%s Settings", effect->name);
     lv_obj_set_style_text_font(title, &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(title, lv_color_white(), 0);
-    lv_obj_set_pos(title, 10, 10);
+    lv_obj_set_pos(title, 10, current_y);
+    lv_obj_set_size(title, 440, 30);
+    current_y += 40;
     
-    /* 启用开关 - 严格按照老代码的方式 */
+    /* 启用开关 */
     lv_obj_t *switch_label = lv_label_create(cont);
     lv_label_set_text(switch_label, "Enable Effect:");
     lv_obj_set_style_text_font(switch_label, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(switch_label, lv_color_white(), 0);
-    lv_obj_set_pos(switch_label, 10, 50);
+    lv_obj_set_pos(switch_label, 10, current_y);
+    current_y += 30;
     
     lv_obj_t *enable_switch = lv_switch_create(cont);
     lv_obj_set_size(enable_switch, 60, 25);
-    lv_obj_set_pos(enable_switch, 130, 48);
+    lv_obj_set_pos(enable_switch, 130, current_y - 22);
     if (effect->enabled) {
         lv_obj_add_state(enable_switch, LV_STATE_CHECKED);
     }
     
-    /* 严格按照老代码的方式创建回调数据结构 */
     switch_data_t *switch_data = (switch_data_t *)malloc(sizeof(switch_data_t));
     if (switch_data) {
         switch_data->effect_index = effect_index;
@@ -664,36 +691,33 @@ static void setup_effect_config_screen(int effect_index)
     
     if (!config) return;
     
-    /* 统计有效参数数量 */
-    int param_count = 0;
-    for (int i = 0; i < 3; i++) {
-        if (strlen(config->param_names[i]) > 0) {
-            param_count++;
-        }
-    }
-    
+    /* 参数滑块 */
     int param_values[3] = {effect->param1, effect->param2, effect->param3};
     
-    for (int i = 0; i < param_count; i++) {
-        int y = 90 + i * 80;
+    for (int i = 0; i < 3; i++) {
+        if (strlen(config->param_names[i]) == 0) continue;
+        
+        current_y += 10;
         
         lv_obj_t *name = lv_label_create(cont);
         lv_label_set_text(name, config->param_names[i]);
         lv_obj_set_style_text_font(name, &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_color(name, lv_color_hex(0x888888), 0);
-        lv_obj_set_pos(name, 10, y);
+        lv_obj_set_pos(name, 10, current_y);
         
         lv_obj_t *value = lv_label_create(cont);
         lv_label_set_text_fmt(value, "%d", param_values[i]);
         lv_obj_set_style_text_font(value, &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_color(value, lv_color_hex(0x3498db), 0);
-        lv_obj_set_pos(value, 380, y);
+        lv_obj_set_pos(value, 380, current_y);
+        current_y += 25;
         
         lv_obj_t *slider = lv_slider_create(cont);
         lv_obj_set_size(slider, 350, 8);
-        lv_obj_set_pos(slider, 10, y + 25);
+        lv_obj_set_pos(slider, 10, current_y);
         lv_slider_set_range(slider, config->param_min[i], config->param_max[i]);
         lv_slider_set_value(slider, param_values[i], LV_ANIM_OFF);
+        current_y += 25;
         
         param_slider_data_t *slider_data = (param_slider_data_t *)malloc(sizeof(param_slider_data_t));
         if (slider_data) {
@@ -796,18 +820,18 @@ static void on_app_click(lv_event_t *e)
 {
     if (screen_switch_in_progress) return;
     app_type_t app_type = (app_type_t)(intptr_t)lv_event_get_user_data(e);
-    switch_to_screen(app_type);
+    create_app_screen(app_type);
 }
 
 static void on_back_click(lv_event_t *e) { create_main_screen(); }
-static void on_effect_config_back(lv_event_t *e) { switch_to_screen(APP_AUDIO_PROCESSOR); }
+static void on_effect_config_back(lv_event_t *e) { create_app_screen(APP_AUDIO_PROCESSOR); }
 
 static void on_effect_click(lv_event_t *e)
 {
     if (screen_switch_in_progress) return;
     int effect_index = (int)(intptr_t)lv_event_get_user_data(e);
     app_ctx->current_effect_index = effect_index;
-    switch_to_screen(APP_EFFECT_CONFIG);
+    create_app_screen(APP_EFFECT_CONFIG);
 }
 
 static void on_file_click(lv_event_t *e)
@@ -820,7 +844,7 @@ static void on_file_click(lv_event_t *e)
             *last_slash = '\0';
             if (strlen(app_ctx->current_path) == 0) strcpy(app_ctx->current_path, "./");
         }
-        load_directory(app_ctx->current_path, app_ctx->current_list);
+        load_directory(app_ctx->current_path, app_ctx->screen.list);
         return;
     }
 
@@ -828,7 +852,7 @@ static void on_file_click(lv_event_t *e)
     
     if (file->is_dir) {
         strcpy(app_ctx->current_path, file->path);
-        load_directory(app_ctx->current_path, app_ctx->current_list);
+        load_directory(app_ctx->current_path, app_ctx->screen.list);
     } else {
         static const char *btns[] = {"Delete", "Cancel", ""};
         lv_obj_t *mbox = lv_msgbox_create(NULL, "Confirm Delete", 
@@ -861,7 +885,7 @@ static void on_delete_confirm(lv_event_t *e)
     int file_index = (int)(intptr_t)lv_event_get_user_data(e);
 
     if (lv_msgbox_get_active_btn(mbox) == 0 && remove(app_ctx->files[file_index].path) == 0) {
-        load_directory(app_ctx->current_path, app_ctx->current_list);
+        load_directory(app_ctx->current_path, app_ctx->screen.list);
         show_notification("File deleted", lv_color_hex(0x2ecc71));
     }
     lv_msgbox_close(mbox);
@@ -916,9 +940,6 @@ static void on_config_slider_change(lv_event_t *e)
     }
 }
 
-/**
- * @brief 效果器启用开关事件 - 严格按照老代码修复
- */
 static void on_effect_enable_switch(lv_event_t *e)
 {
     lv_obj_t *switch_btn = lv_event_get_current_target(e);
@@ -929,7 +950,6 @@ static void on_effect_enable_switch(lv_event_t *e)
     effect_t *effect = data->effect;
     effect->enabled = (lv_obj_get_state(switch_btn) & LV_STATE_CHECKED) != 0;
     
-    /* 只在主界面存在时更新状态指示器 - 严格按照老代码 */
     if (app_ctx->current_app == APP_AUDIO_PROCESSOR) {
         if (effect->status_indicator && lv_obj_is_valid(effect->status_indicator)) {
             if (effect->enabled) {
@@ -988,11 +1008,6 @@ static void show_notification(const char *msg, lv_color_t color)
     
     lv_timer_t *timer = lv_timer_create(NULL, 1500, notif);
     lv_timer_set_repeat_count(timer, 1);
-}
-
-static void free_callback_data(lv_event_t *e)
-{
-    free(lv_event_get_user_data(e));
 }
 
 static void audio_player_timer_cb(lv_timer_t *timer)
