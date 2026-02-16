@@ -97,6 +97,13 @@ typedef struct {
     lv_obj_t *btn;
 } effect_t;
 
+/* 弹窗滑块数据结构 */
+typedef struct {
+    int effect_index;
+    int param_index;
+    lv_obj_t *value_label;
+} param_slider_data_t;
+
 typedef struct {
     lv_obj_t *screen;
     lv_obj_t *header;
@@ -132,6 +139,7 @@ typedef struct {
     int effect_count;
     lv_obj_t *effect_cont;
     lv_obj_t *param_cont;
+    lv_obj_t *chain_label;  // 效果链显示标签
     
     /* 定时器管理 */
     lv_timer_t *app_timer;
@@ -178,6 +186,13 @@ static void on_stop_click(lv_event_t *e);
 static void on_slider_change(lv_event_t *e);
 static void show_notification(const char *msg, lv_color_t color);
 static void cleanup_app(void);
+
+/* 新添加的函数声明 */
+static void create_parameter_dialog(int effect_index);
+static void on_dialog_close(lv_event_t *e);
+static void on_dialog_slider_change(lv_event_t *e);
+static void on_effect_switch(lv_event_t *e);
+static void update_effect_chain_display(void);
 
 /**********************
  *      全局函数
@@ -492,84 +507,382 @@ static void setup_audio_player_screen(void)
 }
 
 /**
- * @brief 设置音频处理器界面
+ * @brief 设置音频处理器界面 - 弹出窗口参数调节版本
  */
 static void setup_audio_processor_screen(void)
 {
-    lv_obj_set_flex_flow(app_ctx->screen.main_cont, LV_FLEX_FLOW_ROW);
+    /* 获取屏幕实际尺寸 */
+    lv_coord_t screen_h = lv_obj_get_height(lv_scr_act());
+    lv_coord_t screen_w = lv_obj_get_width(lv_scr_act());
+    
+    /* 计算自适应尺寸 */
+    lv_coord_t header_height = HEADER_HEIGHT;
+    lv_coord_t content_height = screen_h - header_height - 10;
+    lv_coord_t effect_height = content_height - 60;
+    lv_coord_t chain_height = 50;
+    
+    /* 计算网格尺寸 */
+    lv_coord_t grid_padding = 10;
+    lv_coord_t grid_spacing = 8;
+    lv_coord_t grid_width = screen_w - (grid_padding * 2) - (grid_spacing * 2);
+    lv_coord_t card_width = grid_width / 3;
+    lv_coord_t card_height = (effect_height - grid_padding * 2 - grid_spacing) / 2;
 
-    /* 效果器列表 */
-    lv_obj_t *effect_list = lv_obj_create(app_ctx->screen.main_cont);
-    lv_obj_set_size(effect_list, LV_PCT(30), LV_PCT(100));
-    lv_obj_set_flex_flow(effect_list, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_border_width(effect_list, 0, 0);
-    lv_obj_set_style_bg_opa(effect_list, LV_OPA_10, 0);
+    /* 主容器设置 */
+    lv_obj_set_flex_flow(app_ctx->screen.main_cont, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_all(app_ctx->screen.main_cont, grid_padding, 0);
+    lv_obj_set_style_pad_row(app_ctx->screen.main_cont, 5, 0);
+    lv_obj_set_style_bg_opa(app_ctx->screen.main_cont, LV_OPA_TRANSP, 0);
 
-    CREATE_LABEL(effect_list, "Effects", &lv_font_montserrat_14, 
-                 LV_ALIGN_TOP_LEFT, 0, 0);
+    /* ==================== 效果器网格区域 ==================== */
+    lv_obj_t *effect_grid_cont = lv_obj_create(app_ctx->screen.main_cont);
+    lv_obj_set_size(effect_grid_cont, LV_PCT(100), effect_height);
+    lv_obj_set_style_border_width(effect_grid_cont, 0, 0);
+    lv_obj_set_style_bg_opa(effect_grid_cont, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_pad_all(effect_grid_cont, 0, 0);
+    
+    /* 创建网格布局 */
+    lv_obj_set_flex_flow(effect_grid_cont, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_flex_align(effect_grid_cont, LV_FLEX_ALIGN_SPACE_BETWEEN, 
+                          LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_SPACE_BETWEEN);
+    lv_obj_set_style_pad_row(effect_grid_cont, grid_spacing, 0);
+    lv_obj_set_style_pad_column(effect_grid_cont, grid_spacing, 0);
 
     /* 初始化效果器 */
     app_ctx->effect_count = sizeof(effect_presets) / sizeof(effect_presets[0]);
     
-    for (int i = 0; i < app_ctx->effect_count; i++) {
-        effect_t *effect = &app_ctx->effects[i];
-        effect->type = effect_presets[i].type;
-        effect->enabled = 0;
-        effect->param1 = effect_presets[i].default_param1;
-        effect->param2 = effect_presets[i].default_param2;
-        effect->param3 = effect_presets[i].default_param3;
-        strcpy(effect->name, effect_presets[i].name);
+    /* 创建6个效果器框 */
+    for (int i = 0; i < 6; i++) {
+        effect_t *effect;
+        
+        if (i < app_ctx->effect_count) {
+            effect = &app_ctx->effects[i];
+            effect->type = effect_presets[i].type;
+            effect->enabled = 0;
+            effect->param1 = effect_presets[i].default_param1;
+            effect->param2 = effect_presets[i].default_param2;
+            effect->param3 = effect_presets[i].default_param3;
+            strcpy(effect->name, effect_presets[i].name);
+        } else {
+            effect = &app_ctx->effects[i];
+            effect->type = EFFECT_NONE;
+            effect->enabled = 0;
+            effect->param1 = 0;
+            effect->param2 = 0;
+            effect->param3 = 0;
+            sprintf(effect->name, "Slot %d", i + 1);
+        }
+
+        /* 效果器卡片容器 */
+        lv_obj_t *card = lv_obj_create(effect_grid_cont);
+        lv_obj_set_size(card, card_width, card_height);
+        lv_obj_set_style_border_width(card, 2, 0);
+        lv_obj_set_style_border_color(card, lv_palette_main(LV_PALETTE_GREY), 0);
+        lv_obj_set_style_radius(card, 10, 0);
+        lv_obj_set_style_shadow_width(card, 5, 0);
+        lv_obj_set_style_shadow_ofs_y(card, 3, 0);
+        lv_obj_set_style_shadow_opa(card, LV_OPA_30, 0);
+        lv_obj_set_style_pad_all(card, 0, 0);
+        lv_obj_set_style_bg_opa(card, LV_OPA_20, 0);
+        lv_obj_set_style_bg_color(card, lv_palette_darken(LV_PALETTE_GREY, 3), 0);
 
         /* 效果器按钮 */
-        lv_obj_t *btn = CREATE_BTN(effect_list, LV_PCT(100), 40, 
-                                   on_effect_click, (void *)(intptr_t)i);
-        
-        lv_obj_t *label = lv_label_create(btn);
-        lv_label_set_text_fmt(label, "%s %s", effect->name, LV_SYMBOL_CLOSE);
-        lv_obj_set_style_text_font(label, &lv_font_montserrat_12, 0);
-        lv_obj_center(label);
+        lv_obj_t *btn = lv_btn_create(card);
+        lv_obj_set_size(btn, LV_PCT(100), LV_PCT(100));
+        lv_obj_set_style_border_width(btn, 0, 0);
+        lv_obj_set_style_radius(btn, 10, 0);
+        lv_obj_add_event_cb(btn, on_effect_click, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+        lv_obj_set_style_bg_color(btn, lv_color_white(), 0);
+        lv_obj_set_style_bg_opa(btn, LV_OPA_10, 0);
+
+        /* 按钮内容垂直居中 */
+        lv_obj_set_flex_flow(btn, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(btn, LV_FLEX_ALIGN_CENTER, 
+                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_all(btn, 5, 0);
+
+        /* 序号标签 */
+        lv_obj_t *index_label = lv_label_create(btn);
+        lv_label_set_text_fmt(index_label, "[%d]", i + 1);
+        lv_obj_set_style_text_font(index_label, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_color(index_label, lv_palette_main(LV_PALETTE_ORANGE), 0);
+        lv_obj_align(index_label, LV_ALIGN_TOP_LEFT, 5, 5);
+
+        /* 效果器图标 */
+        lv_obj_t *icon = lv_label_create(btn);
+        const char *icon_text;
+        switch (i) {
+            case 0: icon_text = LV_SYMBOL_VOLUME_MAX; break;
+            case 1: icon_text = LV_SYMBOL_LOOP; break;
+            case 2: icon_text = LV_SYMBOL_EDIT; break;
+            case 3: icon_text = LV_SYMBOL_SETTINGS; break;
+            case 4: icon_text = LV_SYMBOL_WARNING; break;
+            default: icon_text = LV_SYMBOL_IMAGE; break;
+        }
+        lv_label_set_text(icon, icon_text);
+        lv_obj_set_style_text_font(icon, &lv_font_montserrat_20, 0);
+        lv_obj_set_style_text_color(icon, lv_palette_main(LV_PALETTE_BLUE), 0);
+
+        /* 效果器名称 */
+        lv_obj_t *name_label = lv_label_create(btn);
+        lv_label_set_text(name_label, effect->name);
+        lv_obj_set_style_text_font(name_label, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_color(name_label, lv_color_white(), 0);
+
+        /* 启用状态指示器 */
+        lv_obj_t *status_indicator = lv_obj_create(btn);
+        lv_obj_set_size(status_indicator, 10, 10);
+        lv_obj_set_style_radius(status_indicator, LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_bg_color(status_indicator, lv_palette_main(LV_PALETTE_RED), 0);
+        lv_obj_set_style_border_width(status_indicator, 0, 0);
+        lv_obj_align(status_indicator, LV_ALIGN_TOP_RIGHT, -5, 5);
         
         effect->btn = btn;
+        lv_obj_set_user_data(btn, status_indicator);
     }
 
-    /* 参数调节区 */
-    app_ctx->effect_cont = lv_obj_create(app_ctx->screen.main_cont);
-    lv_obj_set_size(app_ctx->effect_cont, LV_PCT(70), LV_PCT(100));
-    lv_obj_set_flex_flow(app_ctx->effect_cont, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_border_width(app_ctx->effect_cont, 0, 0);
-    lv_obj_set_style_bg_opa(app_ctx->effect_cont, LV_OPA_10, 0);
+    /* ==================== 效果链显示区域 ==================== */
+    lv_obj_t *chain_cont = lv_obj_create(app_ctx->screen.main_cont);
+    lv_obj_set_size(chain_cont, LV_PCT(100), chain_height);
+    lv_obj_set_style_border_width(chain_cont, 1, 0);
+    lv_obj_set_style_border_color(chain_cont, lv_palette_main(LV_PALETTE_GREY), 0);
+    lv_obj_set_style_bg_opa(chain_cont, LV_OPA_20, 0);
+    lv_obj_set_style_radius(chain_cont, 8, 0);
+    lv_obj_set_style_pad_all(chain_cont, 5, 0);
 
-    CREATE_LABEL(app_ctx->effect_cont, "Parameters", &lv_font_montserrat_14, 
-                 LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_obj_t *chain_label = lv_label_create(chain_cont);
+    lv_label_set_text(chain_label, "Effect Chain: ");
+    lv_obj_set_style_text_font(chain_label, &lv_font_montserrat_12, 0);
+    lv_obj_align(chain_label, LV_ALIGN_LEFT_MID, 0, 0);
 
-    /* 创建参数滑块 */
-    for (int i = 0; i < 3; i++) {
-        lv_obj_t *slider_cont = lv_obj_create(app_ctx->effect_cont);
-        lv_obj_set_size(slider_cont, LV_PCT(100), 60);
-        lv_obj_set_flex_flow(slider_cont, LV_FLEX_FLOW_ROW);
-        lv_obj_set_style_border_width(slider_cont, 0, 0);
-        lv_obj_set_style_bg_opa(slider_cont, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_pad_all(slider_cont, 5, 0);
+    lv_obj_t *chain_status = lv_label_create(chain_cont);
+    lv_label_set_text(chain_status, "None");
+    lv_obj_set_style_text_font(chain_status, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(chain_status, lv_palette_main(LV_PALETTE_ORANGE), 0);
+    lv_obj_align(chain_status, LV_ALIGN_RIGHT_MID, 0, 0);
 
-        CREATE_LABEL(slider_cont, effect_presets[0].param_names[i], 
-                     &lv_font_montserrat_12, LV_ALIGN_LEFT_MID, 0, 0);
-
-        lv_obj_t *slider = lv_slider_create(slider_cont);
-        lv_obj_set_size(slider, 150, 10);
-        lv_slider_set_range(slider, 0, 100);
-        lv_slider_set_value(slider, 50, LV_ANIM_OFF);
-        lv_obj_add_event_cb(slider, on_slider_change, LV_EVENT_VALUE_CHANGED, 
-                           (void *)(intptr_t)i);
-
-        lv_obj_t *value_label = CREATE_LABEL(slider_cont, "50", 
-                                             &lv_font_montserrat_12, 
-                                             LV_ALIGN_LEFT_MID, 0, 0);
-        lv_obj_set_user_data(slider, value_label);
-    }
+    app_ctx->chain_label = chain_status;
 
     /* 启动定时器 */
     app_ctx->timer_running = 1;
     app_ctx->app_timer = lv_timer_create(audio_processor_timer_cb, 10, app_ctx);
+}
+
+/**
+ * @brief 创建参数调节弹窗
+ */
+static void create_parameter_dialog(int effect_index)
+{
+    effect_t *effect = &app_ctx->effects[effect_index];
+    
+    /* 创建弹窗 */
+    lv_obj_t *dialog = lv_obj_create(lv_scr_act());
+    lv_obj_set_size(dialog, 380, 400);
+    lv_obj_center(dialog);
+    lv_obj_set_style_border_width(dialog, 2, 0);
+    lv_obj_set_style_border_color(dialog, lv_palette_main(LV_PALETTE_BLUE), 0);
+    lv_obj_set_style_radius(dialog, 15, 0);
+    lv_obj_set_style_shadow_width(dialog, 20, 0);
+    lv_obj_set_style_bg_color(dialog, lv_palette_darken(LV_PALETTE_GREY, 3), 0);
+    lv_obj_set_style_pad_all(dialog, 15, 0);
+    
+    /* 标题 */
+    lv_obj_t *title = lv_label_create(dialog);
+    lv_label_set_text_fmt(title, "Configure: %s", effect->name);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(title, lv_palette_main(LV_PALETTE_BLUE), 0);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 0);
+
+    /* 关闭按钮 */
+    lv_obj_t *close_btn = lv_btn_create(dialog);
+    lv_obj_set_size(close_btn, 30, 30);
+    lv_obj_align(close_btn, LV_ALIGN_TOP_RIGHT, -5, 5);
+    lv_obj_set_style_radius(close_btn, LV_RADIUS_CIRCLE, 0);
+    lv_obj_add_event_cb(close_btn, on_dialog_close, LV_EVENT_CLICKED, dialog);
+    
+    lv_obj_t *close_label = lv_label_create(close_btn);
+    lv_label_set_text(close_label, LV_SYMBOL_CLOSE);
+    lv_obj_center(close_label);
+
+    /* 获取效果器参数配置 */
+    int param_count = 0;
+    const effect_config_t *config = NULL;
+    
+    for (size_t i = 0; i < sizeof(effect_presets) / sizeof(effect_presets[0]); i++) {
+        if (effect_presets[i].type == effect->type) {
+            config = &effect_presets[i];
+            for (int j = 0; j < 3; j++) {
+                if (strlen(effect_presets[i].param_names[j]) > 0) {
+                    param_count++;
+                }
+            }
+            break;
+        }
+    }
+
+    /* 参数容器 */
+    lv_obj_t *params_cont = lv_obj_create(dialog);
+    lv_obj_set_size(params_cont, LV_PCT(100), 260);
+    lv_obj_align(params_cont, LV_ALIGN_TOP_MID, 0, 40);
+    lv_obj_set_style_border_width(params_cont, 0, 0);
+    lv_obj_set_style_bg_opa(params_cont, LV_OPA_TRANSP, 0);
+    lv_obj_set_flex_flow(params_cont, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(params_cont, 15, 0);
+
+    /* 创建参数滑块 */
+    int param_values[3] = {effect->param1, effect->param2, effect->param3};
+    
+    for (int i = 0; i < param_count; i++) {
+        lv_obj_t *param_cont = lv_obj_create(params_cont);
+        lv_obj_set_size(param_cont, LV_PCT(100), 70);
+        lv_obj_set_style_border_width(param_cont, 1, 0);
+        lv_obj_set_style_border_color(param_cont, lv_palette_main(LV_PALETTE_GREY), 0);
+        lv_obj_set_style_radius(param_cont, 8, 0);
+        lv_obj_set_style_pad_all(param_cont, 8, 0);
+
+        /* 参数名 */
+        lv_obj_t *name_label = lv_label_create(param_cont);
+        lv_label_set_text(name_label, config->param_names[i]);
+        lv_obj_set_style_text_font(name_label, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(name_label, lv_palette_main(LV_PALETTE_ORANGE), 0);
+        lv_obj_align(name_label, LV_ALIGN_TOP_LEFT, 0, 0);
+
+        /* 参数值 */
+        lv_obj_t *value_label = lv_label_create(param_cont);
+        lv_label_set_text_fmt(value_label, "%d", param_values[i]);
+        lv_obj_set_style_text_font(value_label, &lv_font_montserrat_14, 0);
+        lv_obj_align(value_label, LV_ALIGN_TOP_RIGHT, 0, 0);
+
+        /* 滑块 */
+        lv_obj_t *slider = lv_slider_create(param_cont);
+        lv_obj_set_size(slider, LV_PCT(100), 10);
+        lv_obj_align(slider, LV_ALIGN_BOTTOM_MID, 0, 0);
+        lv_slider_set_range(slider, 0, 100);
+        lv_slider_set_value(slider, param_values[i], LV_ANIM_OFF);
+        
+        /* 存储参数信息 */
+        param_slider_data_t *slider_data = (param_slider_data_t *)malloc(sizeof(param_slider_data_t));
+        slider_data->effect_index = effect_index;
+        slider_data->param_index = i;
+        slider_data->value_label = value_label;
+        
+        lv_obj_add_event_cb(slider, on_dialog_slider_change, LV_EVENT_VALUE_CHANGED, slider_data);
+    }
+
+    /* 启用/禁用开关 */
+    lv_obj_t *switch_cont = lv_obj_create(dialog);
+    lv_obj_set_size(switch_cont, LV_PCT(100), 50);
+    lv_obj_align(switch_cont, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_border_width(switch_cont, 0, 0);
+    lv_obj_set_style_bg_opa(switch_cont, LV_OPA_TRANSP, 0);
+    lv_obj_set_flex_flow(switch_cont, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(switch_cont, LV_FLEX_ALIGN_SPACE_BETWEEN, 
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *switch_label = lv_label_create(switch_cont);
+    lv_label_set_text(switch_label, "Enable Effect");
+    lv_obj_set_style_text_font(switch_label, &lv_font_montserrat_14, 0);
+
+    lv_obj_t *switch_btn = lv_switch_create(switch_cont);
+    lv_obj_set_size(switch_btn, 50, 25);
+    if (effect->enabled) {
+        lv_obj_add_state(switch_btn, LV_STATE_CHECKED);
+    }
+    lv_obj_add_event_cb(switch_btn, on_effect_switch, LV_EVENT_VALUE_CHANGED, 
+                       (void *)(intptr_t)effect_index);
+}
+
+/**
+ * @brief 效果器点击事件处理 - 弹出参数调节窗口
+ */
+static void on_effect_click(lv_event_t *e)
+{
+    int effect_index = (int)(intptr_t)lv_event_get_user_data(e);
+    create_parameter_dialog(effect_index);
+}
+
+/**
+ * @brief 弹窗关闭事件
+ */
+static void on_dialog_close(lv_event_t *e)
+{
+    lv_obj_t *dialog = (lv_obj_t *)lv_event_get_user_data(e);
+    
+    /* 更新效果链显示 */
+    update_effect_chain_display();
+    
+    lv_obj_del_async(dialog);
+}
+
+/**
+ * @brief 弹窗内滑块值改变事件
+ */
+static void on_dialog_slider_change(lv_event_t *e)
+{
+    lv_obj_t *slider = lv_event_get_current_target(e);
+    param_slider_data_t *data = (param_slider_data_t *)lv_event_get_user_data(e);
+    
+    int32_t value = lv_slider_get_value(slider);
+    lv_label_set_text_fmt(data->value_label, "%d", (int)value);
+    
+    /* 更新效果器参数 */
+    effect_t *effect = &app_ctx->effects[data->effect_index];
+    switch (data->param_index) {
+        case 0: effect->param1 = value; break;
+        case 1: effect->param2 = value; break;
+        case 2: effect->param3 = value; break;
+    }
+}
+
+/**
+ * @brief 效果器开关事件
+ */
+static void on_effect_switch(lv_event_t *e)
+{
+    int effect_index = (int)(intptr_t)lv_event_get_user_data(e);
+    lv_obj_t *switch_btn = lv_event_get_current_target(e);
+    
+    effect_t *effect = &app_ctx->effects[effect_index];
+    effect->enabled = (lv_obj_get_state(switch_btn) & LV_STATE_CHECKED) != 0;
+    
+    /* 更新效果器框的状态指示器 */
+    lv_obj_t *status_indicator = (lv_obj_t *)lv_obj_get_user_data(effect->btn);
+    if (effect->enabled) {
+        lv_obj_set_style_bg_color(status_indicator, lv_palette_main(LV_PALETTE_GREEN), 0);
+    } else {
+        lv_obj_set_style_bg_color(status_indicator, lv_palette_main(LV_PALETTE_RED), 0);
+    }
+    
+    /* 更新效果链显示 */
+    update_effect_chain_display();
+}
+
+/**
+ * @brief 更新效果链显示
+ */
+static void update_effect_chain_display(void)
+{
+    char chain_text[128] = "";
+    int enabled_count = 0;
+    
+    for (int i = 0; i < 6; i++) {
+        if (app_ctx->effects[i].enabled) {
+            if (enabled_count > 0) {
+                strcat(chain_text, " → ");
+            }
+            strcat(chain_text, app_ctx->effects[i].name);
+            enabled_count++;
+        }
+    }
+    
+    if (enabled_count == 0) {
+        strcpy(chain_text, "None");
+    }
+    
+    /* 更新显示 */
+    if (app_ctx->chain_label) {
+        lv_label_set_text(app_ctx->chain_label, chain_text);
+    }
 }
 
 /**
@@ -810,22 +1123,6 @@ static void on_delete_confirm(lv_event_t *e)
     }
 
     lv_msgbox_close(mbox);
-}
-
-static void on_effect_click(lv_event_t *e)
-{
-    int effect_index = (int)(intptr_t)lv_event_get_user_data(e);
-    effect_t *effect = &app_ctx->effects[effect_index];
-    
-    effect->enabled = !effect->enabled;
-
-    lv_obj_t *btn = lv_event_get_current_target(e);
-    lv_obj_t *label = lv_obj_get_child(btn, 0);
-    lv_label_set_text_fmt(label, "%s %s", effect->name,
-                          effect->enabled ? LV_SYMBOL_OK : LV_SYMBOL_CLOSE);
-
-    show_notification(effect->enabled ? "Effect enabled" : "Effect disabled",
-                     lv_palette_main(LV_PALETTE_BLUE));
 }
 
 static void on_play_click(lv_event_t *e)
