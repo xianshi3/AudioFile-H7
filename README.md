@@ -7,6 +7,8 @@
 
 This project is an audio processing system based on STM32H743VIT6, utilizing LVGL v8.3 as the GUI framework. The system includes three core functionalities: file management, audio playback, and real-time audio processing.
 
+<img width="1694" height="566" alt="QQ20260216-233810" src="https://github.com/user-attachments/assets/3a174d27-aba5-459b-844d-dd804a8298c7" />
+
 ### 1.2 Hardware Specifications
 
 | Parameter | Specification | Description |
