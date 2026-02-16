@@ -208,6 +208,8 @@ int main(int argc, char **argv)
             sprintf(e->name, "Slot %d", i + 1);
         }
         e->enabled = 0;
+        e->btn = NULL;
+        e->status_indicator = NULL;
     }
 
     create_main_screen();
@@ -250,11 +252,6 @@ static void hal_init(void)
     mouse_drv.type = LV_INDEV_TYPE_POINTER;
     mouse_drv.read_cb = sdl_mouse_read;
     lv_indev_drv_register(&mouse_drv);
-
-    LV_IMG_DECLARE(mouse_cursor_icon);
-    lv_obj_t *cursor = lv_img_create(lv_scr_act());
-    lv_img_set_src(cursor, &mouse_cursor_icon);
-    lv_indev_set_cursor(lv_indev_get_next(NULL), cursor);
 }
 
 /**********************
@@ -403,7 +400,7 @@ static void switch_to_screen(app_type_t app_type)
     lv_obj_set_style_text_color(title, lv_color_white(), 0);
     lv_obj_center(title);
     
-    /* 内容容器 - 只有这个区域可以有滚动条 */
+    /* 内容容器 */
     app_ctx->current_content = lv_obj_create(app_ctx->current_screen);
     lv_obj_set_size(app_ctx->current_content, SCREEN_WIDTH, SCREEN_HEIGHT - HEADER_HEIGHT);
     lv_obj_set_pos(app_ctx->current_content, 0, HEADER_HEIGHT);
@@ -414,13 +411,11 @@ static void switch_to_screen(app_type_t app_type)
     switch (app_type) {
         case APP_FILE_MANAGER:
         case APP_AUDIO_PLAYER:
-            /* 文件列表和播放列表需要滚动 */
             lv_obj_set_scrollbar_mode(app_ctx->current_content, LV_SCROLLBAR_MODE_AUTO);
             lv_obj_set_scroll_dir(app_ctx->current_content, LV_DIR_VER);
             break;
         case APP_AUDIO_PROCESSOR:
         case APP_EFFECT_CONFIG:
-            /* 效果器页面内容固定，不需要滚动 */
             lv_obj_set_scrollbar_mode(app_ctx->current_content, LV_SCROLLBAR_MODE_OFF);
             break;
         default:
@@ -449,14 +444,12 @@ static void setup_file_manager_screen(void)
     lv_obj_t *cont = app_ctx->current_content;
     lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);
     
-    /* 路径显示 - 固定位置，不随滚动条移动 */
     lv_obj_t *path_label = lv_label_create(cont);
     lv_label_set_text(path_label, app_ctx->current_path);
     lv_obj_set_style_text_font(path_label, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(path_label, lv_color_hex(0x888888), 0);
     lv_obj_set_width(path_label, LV_PCT(100));
     
-    /* 文件列表 - 会自动滚动 */
     app_ctx->current_list = lv_list_create(cont);
     lv_obj_set_size(app_ctx->current_list, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_border_width(app_ctx->current_list, 1, 0);
@@ -470,24 +463,19 @@ static void setup_file_manager_screen(void)
 static void setup_audio_player_screen(void)
 {
     lv_obj_t *cont = app_ctx->current_content;
-    
-    /* 使用固定布局，不需要整体滚动 */
     lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);
     
-    /* 播放列表标题 - 固定 */
     lv_obj_t *list_title = lv_label_create(cont);
     lv_label_set_text(list_title, LV_SYMBOL_AUDIO " Playlist");
     lv_obj_set_style_text_font(list_title, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(list_title, lv_color_hex(0x3498db), 0);
     
-    /* 播放列表 - 只有这个区域有滚动条 */
     app_ctx->current_list = lv_list_create(cont);
     lv_obj_set_size(app_ctx->current_list, LV_PCT(100), 180);
     lv_obj_set_style_bg_color(app_ctx->current_list, lv_color_hex(0x2c3e50), 0);
     lv_obj_set_style_border_color(app_ctx->current_list, lv_color_hex(0x34495e), 0);
     lv_obj_set_scrollbar_mode(app_ctx->current_list, LV_SCROLLBAR_MODE_AUTO);
     
-    /* 当前播放信息 - 固定 */
     lv_obj_t *now_playing_cont = lv_obj_create(cont);
     lv_obj_set_size(now_playing_cont, LV_PCT(100), 40);
     lv_obj_set_style_border_width(now_playing_cont, 1, 0);
@@ -505,7 +493,6 @@ static void setup_audio_player_screen(void)
     lv_obj_set_style_text_color(app_ctx->now_playing_label, lv_color_white(), 0);
     lv_obj_align(app_ctx->now_playing_label, LV_ALIGN_LEFT_MID, 30, 0);
     
-    /* 进度条区域 - 固定 */
     lv_obj_t *progress_cont = lv_obj_create(cont);
     lv_obj_set_size(progress_cont, LV_PCT(100), 40);
     lv_obj_set_style_border_width(progress_cont, 0, 0);
@@ -521,7 +508,6 @@ static void setup_audio_player_screen(void)
     lv_label_set_text(app_ctx->time_label, "00:00/03:00");
     lv_obj_set_style_text_color(app_ctx->time_label, lv_color_hex(0x888888), 0);
     
-    /* 控制按钮 - 固定 */
     lv_obj_t *control_cont = lv_obj_create(cont);
     lv_obj_set_size(control_cont, LV_PCT(100), 80);
     lv_obj_set_style_border_width(control_cont, 1, 0);
@@ -531,7 +517,6 @@ static void setup_audio_player_screen(void)
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_scrollbar_mode(control_cont, LV_SCROLLBAR_MODE_OFF);
     
-    /* 播放按钮 */
     app_ctx->play_btn = lv_btn_create(control_cont);
     lv_obj_set_size(app_ctx->play_btn, 80, 60);
     lv_obj_set_style_bg_color(app_ctx->play_btn, lv_color_hex(0x3498db), 0);
@@ -542,7 +527,6 @@ static void setup_audio_player_screen(void)
     lv_obj_set_style_text_color(play_label, lv_color_white(), 0);
     lv_obj_center(play_label);
     
-    /* 停止按钮 */
     lv_obj_t *stop_btn = lv_btn_create(control_cont);
     lv_obj_set_size(stop_btn, 80, 60);
     lv_obj_set_style_bg_color(stop_btn, lv_color_hex(0xe74c3c), 0);
@@ -563,7 +547,6 @@ static void setup_audio_processor_screen(void)
 {
     lv_obj_t *cont = app_ctx->current_content;
     
-    /* 效果器页面内容固定，不需要滚动条 */
     lv_obj_set_scrollbar_mode(cont, LV_SCROLLBAR_MODE_OFF);
     
     lv_coord_t padding = 8;
@@ -592,6 +575,8 @@ static void setup_audio_processor_screen(void)
         lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF);
         lv_obj_add_event_cb(card, on_effect_click, LV_EVENT_CLICKED, (void *)(intptr_t)i);
         
+        effect->btn = card;
+        
         lv_obj_t *index = lv_label_create(card);
         lv_label_set_text_fmt(index, "%d", i + 1);
         lv_obj_set_style_text_font(index, &lv_font_montserrat_12, 0);
@@ -604,6 +589,7 @@ static void setup_audio_processor_screen(void)
         lv_obj_set_style_text_color(name, lv_color_white(), 0);
         lv_obj_align(name, LV_ALIGN_BOTTOM_LEFT, 5, -5);
         
+        /* 创建状态指示器 */
         lv_obj_t *indicator = lv_obj_create(card);
         lv_obj_set_size(indicator, 8, 8);
         lv_obj_set_style_radius(indicator, LV_RADIUS_CIRCLE, 0);
@@ -611,7 +597,6 @@ static void setup_audio_processor_screen(void)
         lv_obj_set_style_bg_color(indicator, effect->enabled ? lv_color_hex(0x2ecc71) : lv_color_hex(0xe74c3c), 0);
         lv_obj_align(indicator, LV_ALIGN_TOP_RIGHT, -5, 5);
         
-        effect->btn = card;
         effect->status_indicator = indicator;
     }
     
@@ -639,7 +624,6 @@ static void setup_effect_config_screen(int effect_index)
     effect_t *effect = &app_ctx->effects[effect_index];
     lv_obj_t *cont = app_ctx->current_content;
     
-    /* 配置页面内容固定，不需要滚动条 */
     lv_obj_set_scrollbar_mode(cont, LV_SCROLLBAR_MODE_OFF);
     
     const effect_config_t *config = NULL;
@@ -656,7 +640,7 @@ static void setup_effect_config_screen(int effect_index)
     lv_obj_set_style_text_color(title, lv_color_white(), 0);
     lv_obj_set_pos(title, 10, 10);
     
-    /* 启用开关 */
+    /* 启用开关 - 严格按照老代码的方式 */
     lv_obj_t *switch_label = lv_label_create(cont);
     lv_label_set_text(switch_label, "Enable Effect:");
     lv_obj_set_style_text_font(switch_label, &lv_font_montserrat_14, 0);
@@ -666,23 +650,31 @@ static void setup_effect_config_screen(int effect_index)
     lv_obj_t *enable_switch = lv_switch_create(cont);
     lv_obj_set_size(enable_switch, 60, 25);
     lv_obj_set_pos(enable_switch, 130, 48);
-    if (effect->enabled) lv_obj_add_state(enable_switch, LV_STATE_CHECKED);
+    if (effect->enabled) {
+        lv_obj_add_state(enable_switch, LV_STATE_CHECKED);
+    }
     
-    switch_data_t *sw_data = malloc(sizeof(switch_data_t));
-    if (sw_data) {
-        sw_data->effect_index = effect_index;
-        sw_data->effect = effect;
-        lv_obj_add_event_cb(enable_switch, on_effect_enable_switch, LV_EVENT_VALUE_CHANGED, sw_data);
-        lv_obj_add_event_cb(enable_switch, free_callback_data, LV_EVENT_DELETE, sw_data);
+    /* 严格按照老代码的方式创建回调数据结构 */
+    switch_data_t *switch_data = (switch_data_t *)malloc(sizeof(switch_data_t));
+    if (switch_data) {
+        switch_data->effect_index = effect_index;
+        switch_data->effect = effect;
+        lv_obj_add_event_cb(enable_switch, on_effect_enable_switch, LV_EVENT_VALUE_CHANGED, switch_data);
     }
     
     if (!config) return;
     
+    /* 统计有效参数数量 */
+    int param_count = 0;
+    for (int i = 0; i < 3; i++) {
+        if (strlen(config->param_names[i]) > 0) {
+            param_count++;
+        }
+    }
+    
     int param_values[3] = {effect->param1, effect->param2, effect->param3};
     
-    for (int i = 0; i < 3; i++) {
-        if (strlen(config->param_names[i]) == 0) continue;
-        
+    for (int i = 0; i < param_count; i++) {
         int y = 90 + i * 80;
         
         lv_obj_t *name = lv_label_create(cont);
@@ -703,13 +695,12 @@ static void setup_effect_config_screen(int effect_index)
         lv_slider_set_range(slider, config->param_min[i], config->param_max[i]);
         lv_slider_set_value(slider, param_values[i], LV_ANIM_OFF);
         
-        param_slider_data_t *s_data = malloc(sizeof(param_slider_data_t));
-        if (s_data) {
-            s_data->effect_index = effect_index;
-            s_data->param_index = i;
-            s_data->value_label = value;
-            lv_obj_add_event_cb(slider, on_config_slider_change, LV_EVENT_VALUE_CHANGED, s_data);
-            lv_obj_add_event_cb(slider, free_callback_data, LV_EVENT_DELETE, s_data);
+        param_slider_data_t *slider_data = (param_slider_data_t *)malloc(sizeof(param_slider_data_t));
+        if (slider_data) {
+            slider_data->effect_index = effect_index;
+            slider_data->param_index = i;
+            slider_data->value_label = value;
+            lv_obj_add_event_cb(slider, on_config_slider_change, LV_EVENT_VALUE_CHANGED, slider_data);
         }
     }
 }
@@ -721,7 +712,7 @@ static void load_directory(const char *path, lv_obj_t *list)
 {
     DIR *dir = opendir(path);
     if (!dir) {
-        show_notification("Cannot open directory", lv_palette_main(LV_PALETTE_RED));
+        show_notification("Cannot open directory", lv_color_hex(0xe74c3c));
         return;
     }
 
@@ -763,7 +754,7 @@ static void load_audio_files(const char *path, lv_obj_t *list)
 {
     DIR *dir = opendir(path);
     if (!dir) {
-        show_notification("Cannot open directory", lv_palette_main(LV_PALETTE_RED));
+        show_notification("Cannot open directory", lv_color_hex(0xe74c3c));
         return;
     }
 
@@ -906,33 +897,52 @@ static void on_config_slider_change(lv_event_t *e)
 {
     lv_obj_t *slider = lv_event_get_current_target(e);
     param_slider_data_t *data = (param_slider_data_t *)lv_event_get_user_data(e);
+    
     if (!data) return;
     
     int32_t value = lv_slider_get_value(slider);
-    lv_label_set_text_fmt(data->value_label, "%d", (int)value);
     
-    effect_t *effect = &app_ctx->effects[data->effect_index];
-    switch (data->param_index) {
-        case 0: effect->param1 = value; break;
-        case 1: effect->param2 = value; break;
-        case 2: effect->param3 = value; break;
+    if (data->value_label && lv_obj_is_valid(data->value_label)) {
+        lv_label_set_text_fmt(data->value_label, "%d", (int)value);
+    }
+    
+    if (data->effect_index >= 0 && data->effect_index < 6) {
+        effect_t *effect = &app_ctx->effects[data->effect_index];
+        switch (data->param_index) {
+            case 0: effect->param1 = value; break;
+            case 1: effect->param2 = value; break;
+            case 2: effect->param3 = value; break;
+        }
     }
 }
 
+/**
+ * @brief 效果器启用开关事件 - 严格按照老代码修复
+ */
 static void on_effect_enable_switch(lv_event_t *e)
 {
-    lv_obj_t *sw = lv_event_get_current_target(e);
+    lv_obj_t *switch_btn = lv_event_get_current_target(e);
     switch_data_t *data = (switch_data_t *)lv_event_get_user_data(e);
-    if (!data) return;
     
-    data->effect->enabled = (lv_obj_get_state(sw) & LV_STATE_CHECKED) != 0;
+    if (!data || !data->effect) return;
     
-    if (data->effect->status_indicator) {
-        lv_obj_set_style_bg_color(data->effect->status_indicator, 
-            data->effect->enabled ? lv_color_hex(0x2ecc71) : lv_color_hex(0xe74c3c), 0);
+    effect_t *effect = data->effect;
+    effect->enabled = (lv_obj_get_state(switch_btn) & LV_STATE_CHECKED) != 0;
+    
+    /* 只在主界面存在时更新状态指示器 - 严格按照老代码 */
+    if (app_ctx->current_app == APP_AUDIO_PROCESSOR) {
+        if (effect->status_indicator && lv_obj_is_valid(effect->status_indicator)) {
+            if (effect->enabled) {
+                lv_obj_set_style_bg_color(effect->status_indicator, lv_color_hex(0x2ecc71), 0);
+            } else {
+                lv_obj_set_style_bg_color(effect->status_indicator, lv_color_hex(0xe74c3c), 0);
+            }
+        }
+        update_effect_chain_display();
     }
     
-    if (app_ctx->current_app == APP_AUDIO_PROCESSOR) update_effect_chain_display();
+    show_notification(effect->enabled ? "Effect enabled" : "Effect disabled",
+                     lv_color_hex(0x3498db));
 }
 
 /**********************
@@ -940,20 +950,28 @@ static void on_effect_enable_switch(lv_event_t *e)
  **********************/
 static void update_effect_chain_display(void)
 {
-    if (!app_ctx->chain_label) return;
+    if (!app_ctx->chain_label || !lv_obj_is_valid(app_ctx->chain_label)) {
+        return;
+    }
     
-    char text[64] = "Effect Chain: ";
-    int count = 0;
+    char chain_text[128] = "";
+    int enabled_count = 0;
     
     for (int i = 0; i < 6; i++) {
         if (app_ctx->effects[i].enabled) {
-            if (count++) strcat(text, " → ");
-            strcat(text, app_ctx->effects[i].name);
+            if (enabled_count > 0) {
+                strcat(chain_text, " → ");
+            }
+            strcat(chain_text, app_ctx->effects[i].name);
+            enabled_count++;
         }
     }
-    if (count == 0) strcat(text, "None");
     
-    lv_label_set_text(app_ctx->chain_label, text);
+    if (enabled_count == 0) {
+        strcpy(chain_text, "None");
+    }
+    
+    lv_label_set_text(app_ctx->chain_label, chain_text);
 }
 
 static void show_notification(const char *msg, lv_color_t color)
