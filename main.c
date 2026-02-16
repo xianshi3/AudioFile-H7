@@ -297,53 +297,175 @@ static void hal_init(void)
 }
 
 /**
- * @brief 创建主屏幕
+ * @brief 创建主屏幕 - 优化版本
+ * 屏幕分辨率：460x460
+ * 布局：顶部标题、中部功能卡片、底部状态栏
  */
 static void create_main_screen(void)
 {
     app_ctx->main_screen = lv_obj_create(NULL);
     lv_scr_load(app_ctx->main_screen);
     
-    /* 标题 */
-    CREATE_LABEL(app_ctx->main_screen, "Audio File Processor", &lv_font_montserrat_16, 
-                 LV_ALIGN_TOP_MID, 0, 10);
-
-    /* 按钮容器 */
-    lv_obj_t *btn_cont = lv_obj_create(app_ctx->main_screen);
-    lv_obj_set_size(btn_cont, LV_PCT(90), LV_PCT(70));
-    lv_obj_center(btn_cont);
-    lv_obj_set_flex_flow(btn_cont, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(btn_cont, LV_FLEX_ALIGN_CENTER, 
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(btn_cont, 20, 0);
-    lv_obj_set_style_border_width(btn_cont, 0, 0);
-    lv_obj_set_style_bg_opa(btn_cont, LV_OPA_TRANSP, 0);
-
-    /* 应用按钮定义 */
+    /* 设置基础背景色 - 深色简约风格 */
+    lv_obj_set_style_bg_color(app_ctx->main_screen, lv_color_hex(0x1a1a1a), 0);
+    lv_obj_set_style_bg_opa(app_ctx->main_screen, LV_OPA_COVER, 0);
+    
+    /* 获取屏幕尺寸 */
+    lv_coord_t screen_w = lv_obj_get_width(lv_scr_act());
+    lv_coord_t screen_h = lv_obj_get_height(lv_scr_act());
+    
+    /* 计算各区域尺寸 - 固定值，避免过度计算 */
+    lv_coord_t padding = 15;
+    lv_coord_t header_height = 50;
+    lv_coord_t footer_height = 40;
+    lv_coord_t card_area_height = screen_h - header_height - footer_height - padding * 2;
+    lv_coord_t card_width = (screen_w - padding * 3) / 2;
+    lv_coord_t card_height = (card_area_height - padding) / 2;
+    
+    /* ==================== 顶部标题区域 ==================== */
+    lv_obj_t *header = lv_obj_create(app_ctx->main_screen);
+    lv_obj_set_size(header, LV_PCT(100), header_height);
+    lv_obj_set_pos(header, 0, 0);
+    lv_obj_set_style_border_width(header, 0, 0);
+    lv_obj_set_style_bg_opa(header, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_pad_all(header, 0, 0);
+    
+    /* 主标题 */
+    lv_obj_t *title = lv_label_create(header);
+    lv_label_set_text(title, "Audio Processor");
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_22, 0);
+    lv_obj_set_style_text_color(title, lv_color_hex(0xffffff), 0);
+    lv_obj_align(title, LV_ALIGN_LEFT_MID, padding, 0);
+    
+    /* 版本号 */
+    lv_obj_t *version = lv_label_create(header);
+    lv_label_set_text(version, "v2.0");
+    lv_obj_set_style_text_font(version, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(version, lv_color_hex(0x888888), 0);
+    lv_obj_align(version, LV_ALIGN_RIGHT_MID, -padding, 0);
+    
+    /* ==================== 功能卡片区域 ==================== */
+    /* 创建卡片容器 - 使用绝对定位，避免flex布局带来的性能问题 */
+    lv_obj_t *card_container = lv_obj_create(app_ctx->main_screen);
+    lv_obj_set_size(card_container, screen_w - padding * 2, card_area_height);
+    lv_obj_set_pos(card_container, padding, header_height + padding);
+    lv_obj_set_style_border_width(card_container, 0, 0);
+    lv_obj_set_style_bg_opa(card_container, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_pad_all(card_container, 0, 0);
+    lv_obj_set_scrollbar_mode(card_container, LV_SCROLLBAR_MODE_OFF);  // 关闭滚动条
+    
+    /* 功能卡片定义 */
     struct {
-        const char *text;
-        const char *symbol;
+        const char *icon;
+        const char *title;
+        const char *desc;
+        lv_color_t color;
         app_type_t type;
-    } app_btns[] = {
-        {"File Manager", LV_SYMBOL_DIRECTORY, APP_FILE_MANAGER},
-        {"Audio Player", LV_SYMBOL_PLAY, APP_AUDIO_PLAYER},
-        {"Audio Processor", LV_SYMBOL_SETTINGS, APP_AUDIO_PROCESSOR}
+        int col;
+        int row;
+    } cards[] = {
+        {LV_SYMBOL_DIRECTORY, "Files", "Browse", lv_color_hex(0x3498db), APP_FILE_MANAGER, 0, 0},
+        {LV_SYMBOL_PLAY, "Player", "Listen", lv_color_hex(0x2ecc71), APP_AUDIO_PLAYER, 1, 0},
+        {LV_SYMBOL_SETTINGS, "Effects", "Process", lv_color_hex(0xe74c3c), APP_AUDIO_PROCESSOR, 0, 1},
+        {LV_SYMBOL_AUDIO, "EQ", "Adjust", lv_color_hex(0xf39c12), APP_AUDIO_PROCESSOR, 1, 1}
     };
-
-    /* 创建应用按钮 */
-    for (int i = 0; i < 3; i++) {
-        lv_obj_t *btn = CREATE_BTN(btn_cont, BUTTON_WIDTH, BUTTON_HEIGHT, 
-                                   on_app_click, (void *)(intptr_t)app_btns[i].type);
+    
+    /* 创建功能卡片 - 使用绝对定位，避免flex布局 */
+    for (int i = 0; i < 4; i++) {
+        /* 计算卡片位置 */
+        lv_coord_t card_x = cards[i].col * (card_width + padding);
+        lv_coord_t card_y = cards[i].row * (card_height + padding);
         
-        char btn_text[64];
-        snprintf(btn_text, sizeof(btn_text), "%s %s", app_btns[i].symbol, app_btns[i].text);
+        /* 卡片容器 */
+        lv_obj_t *card = lv_obj_create(card_container);
+        lv_obj_set_size(card, card_width, card_height);
+        lv_obj_set_pos(card, card_x, card_y);
+        lv_obj_set_style_border_width(card, 1, 0);
+        lv_obj_set_style_border_color(card, lv_color_hex(0x333333), 0);
+        lv_obj_set_style_radius(card, 16, 0);
+        lv_obj_set_style_bg_color(card, lv_color_hex(0x222222), 0);
+        lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
+        lv_obj_set_style_shadow_width(card, 8, 0);
+        lv_obj_set_style_shadow_color(card, lv_color_hex(0x000000), 0);
+        lv_obj_set_style_shadow_ofs_y(card, 4, 0);
+        lv_obj_set_style_pad_all(card, 0, 0);
+        lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF);  // 关闭滚动条
         
-        lv_obj_t *label = lv_label_create(btn);
-        lv_label_set_text(label, btn_text);
-        lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
-        lv_obj_center(label);
+        /* 设置点击事件 */
+        lv_obj_add_event_cb(card, on_app_click, LV_EVENT_CLICKED, (void *)(intptr_t)cards[i].type);
+        
+        /* 点击效果 - 使用更简单的方式 */
+        lv_obj_set_style_bg_color(card, cards[i].color, LV_STATE_PRESSED);
+        lv_obj_set_style_bg_opa(card, LV_OPA_30, LV_STATE_PRESSED);
+        
+        /* 图标容器 - 简化，去除不必要的嵌套 */
+        lv_obj_t *icon = lv_label_create(card);
+        lv_label_set_text(icon, cards[i].icon);
+        lv_obj_set_style_text_font(icon, &lv_font_montserrat_32, 0);
+        lv_obj_set_style_text_color(icon, cards[i].color, 0);
+        lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 15);
+        
+        /* 标题 */
+        lv_obj_t *card_title = lv_label_create(card);
+        lv_label_set_text(card_title, cards[i].title);
+        lv_obj_set_style_text_font(card_title, &lv_font_montserrat_18, 0);
+        lv_obj_set_style_text_color(card_title, lv_color_hex(0xffffff), 0);
+        lv_obj_align(card_title, LV_ALIGN_BOTTOM_LEFT, 10, -25);
+        
+        /* 描述 */
+        lv_obj_t *card_desc = lv_label_create(card);
+        lv_label_set_text(card_desc, cards[i].desc);
+        lv_obj_set_style_text_font(card_desc, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_color(card_desc, lv_color_hex(0x888888), 0);
+        lv_obj_align(card_desc, LV_ALIGN_BOTTOM_LEFT, 10, -8);
     }
+    
+    /* ==================== 底部状态栏 ==================== */
+    lv_obj_t *footer = lv_obj_create(app_ctx->main_screen);
+    lv_obj_set_size(footer, LV_PCT(100), footer_height);
+    lv_obj_set_pos(footer, 0, screen_h - footer_height);
+    lv_obj_set_style_border_width(footer, 0, 0);
+    lv_obj_set_style_bg_opa(footer, LV_OPA_TRANSP, 0);
+    
+    /* 左侧状态信息 */
+    lv_obj_t *status = lv_label_create(footer);
+    lv_label_set_text(status, "STM32H743");
+    lv_obj_set_style_text_font(status, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(status, lv_color_hex(0x888888), 0);
+    lv_obj_align(status, LV_ALIGN_LEFT_MID, padding, 0);
+    
+    /* 右侧系统信息 */
+    lv_obj_t *sys_info = lv_label_create(footer);
+    lv_label_set_text(sys_info, "460x460");
+    lv_obj_set_style_text_font(sys_info, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(sys_info, lv_color_hex(0x888888), 0);
+    lv_obj_align(sys_info, LV_ALIGN_RIGHT_MID, -padding, 0);
+    
+    /* 装饰线 */
+    lv_obj_t *line = lv_obj_create(app_ctx->main_screen);
+    lv_obj_set_size(line, screen_w - padding * 2, 2);
+    lv_obj_set_pos(line, padding, screen_h - footer_height - 2);
+    lv_obj_set_style_border_width(line, 0, 0);
+    lv_obj_set_style_bg_color(line, lv_color_hex(0x333333), 0);
+    lv_obj_set_style_bg_opa(line, LV_OPA_50, 0);
+    lv_obj_set_style_radius(line, 0, 0);
 }
+
+/**
+ * @brief 点击动画定时器回调 - 简化版本
+ */
+static void card_animation_cb(lv_timer_t *timer)
+{
+    lv_obj_t *card = (lv_obj_t *)timer->user_data;
+    if (card && lv_obj_is_valid(card)) {
+        /* 恢复原始大小 */
+        lv_coord_t w = lv_obj_get_width(card) + 5;
+        lv_coord_t h = lv_obj_get_height(card) + 5;
+        lv_obj_set_size(card, w, h);
+    }
+    lv_timer_del(timer);
+}
+
 
 /**
  * @brief 创建应用屏幕（通用入口）
@@ -1253,11 +1375,16 @@ static void load_audio_files(const char *path, lv_obj_t *list)
 }
 
 /**
- * @brief 事件处理函数
+ * @brief 应用点击事件 - 简化版本
  */
 static void on_app_click(lv_event_t *e)
 {
     app_type_t app_type = (app_type_t)(intptr_t)lv_event_get_user_data(e);
+    
+    /* 简单的点击反馈 - 只改变颜色，不做复杂动画 */
+    lv_obj_t *card = lv_event_get_current_target(e);
+    
+    /* 直接切换页面，不等待动画 */
     create_app_screen(app_type);
 }
 
